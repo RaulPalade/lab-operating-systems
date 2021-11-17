@@ -316,3 +316,9 @@ void handler(int signal) {
             break;
     }
 }
+
+void log_message(char *message, enum level l) {
+    if (l <= DEBUG) {
+        printf("[master-%d] %s\n", getpid(), message);
+    }
+}

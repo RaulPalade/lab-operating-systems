@@ -74,11 +74,7 @@ typedef struct {
     int requests;
 } master_message;
 
-void log_message(char *message, enum level l) {
-    if (l <= DEBUG) {
-        printf("[master-%d] %s\n", getpid(), message);
-    }
-}
+void log_message(char *, enum level);
 
 int cell_is_free(cell (*map)[][SO_HEIGHT], map_point p);
 

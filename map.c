@@ -179,6 +179,87 @@ int main(int argc, char **argv) {
         EXIT_ON_ERROR
     }
 
+    parse_configuration(&configuration);
+    top_cells.requests = configuration.SO_TOP_CELLS;
+    top_cells.type = 2;
+
+    if (DEBUG) {
+        log_message("Testing map", DB);
+        for (col = 0; col < SO_WIDTH; col++) {
+            for (row = 0; row < SO_HEIGHT; row++) {
+                (*map_ptr)[col][row].state = FREE;
+                (*map_ptr)[col][row].capacity = 100;
+            }
+        }
+        log_message("OK", DB);
+    }
+
+    log_message("Generating Map...", DB);
+    generate_map(map_ptr, &configuration);
+    srand(time(NULL) + getpid());
+    log_message("Init complete", DB);
+    /* END INIT */
+
+    log_message("Printing Map...", DB);
+    print_map(map_ptr);
+    log_message("Forking sources...", DB);
+
+    for (i = 1; i < configuration.SO_SOURCES; i++) {
+        if (DEBUG) {
+            printf("\tSources n. %d created\n", i);
+        }
+        switch (fork()) {
+            case -1:
+                EXIT_ON_ERROR
+            case 0:
+                execute_source(i);
+        }
+    }
+
+    log_message("Forking taxis...", DB);
+    for (i = 1; i < configuration.SO_TAXI + 1; i++) {
+        if (DEBUG) {
+            printf("\tTaxi n. %d created\n", i);
+        }
+        switch (fork()) {
+            case -1:
+                EXIT_ON_ERROR
+            case 0:
+                execute_taxi();
+        }
+    }
+
+    msgsnd(id_message_queue_master_map_source, &top_cells, sizeof(int), 0);
+    unblock(semaphore);
+    log_message("Starting Timer Now", DB);
+    if (DEBUG) {
+        printf("\tAlarm in %d seconds\n", configuration.SO_DURATION);
+    }
+
+    alarm(configuration.SO_DURATION);
+    kill(getppid(), SIGUSR1);
+    log_message("Waiting for children...", DB);
+    while (executing) {
+        if (dead_taxis > 0) {
+            log_message("Relaunchin taxi...", DB);
+            for (; dead_taxis > 0; dead_taxis--) {
+                switch (fork()) {
+                    case -1:
+                        EXIT_ON_ERROR
+
+                    case 0:
+                        execute_taxi();
+                        break;
+                }
+            }
+        }
+    }
+
+    kill(0, SIGALRM);
+    while (wait(NULL) > 0) {
+
+    }
+
     shmdt(map_ptr);
     shmdt(source_list_ptr);
     shmdt(readers);
@@ -291,7 +372,91 @@ int check_no_adjacent_holes(cell (*matrix)[][SO_HEIGHT], int x, int y) {
 }
 
 void generate_map(cell (*matrix)[][SO_HEIGHT], simulation_configuration *configuration) {
+    int x;
+    int y;
+    int r;
+    int i;
+    time_t start_time;
+    if (SO_WIDTH <= 0 || SO_HEIGHT <= 0) {
+        log_message("You must set appropriate SO_WIDTH and SO_HEIGHT:\n\t\tRetry\nQuitting...", RUNTIME);
+        kill(0, SIGINT);
+    }
+    if (configuration->SO_HOLES + configuration->SO_SOURCES > SO_HEIGHT * SO_WIDTH) {
+        log_message("You must set appropriate SO_WIDTH and SO_HEIGHT:\n\t\tRetry\nQuitting...", RUNTIME);
+        kill(0, SIGINT);
+    }
 
+    start_time = time(NULL);
+
+    for (x = 0; x < SO_WIDTH; x++) {
+        if (time(NULL) - start_time > 4) {
+            log_message("Could not generate the MAP:\n\t\tRetry with a smaller size.\nQuitting...", RUNTIME);
+            kill(0, SIGINT);
+        }
+    }
+
+    for (y = 0; y < SO_HEIGHT; y++) {
+        (*matrix)[x][y].state = FREE;
+        (*matrix)[x][y].traffic = 0;
+        (*matrix)[x][y].visits = 0;
+        r = rand();
+        if (configuration->SO_CAP_MAX == configuration->SO_CAP_MIN) {
+            (*matrix)[x][y].capacity = configuration->SO_CAP_MIN;
+        } else {
+            (*matrix)[x][y].capacity =
+                    (r % (configuration->SO_CAP_MAX - configuration->SO_CAP_MIN)) + configuration->SO_CAP_MIN;
+        }
+    }
+
+    /* To stop the user from using too many holes */
+    start_time = time(NULL);
+    for (i = configuration->SO_HOLES; i > 0; i--) {
+        if (time(NULL) - start_time > 2) {
+            log_message("You selected too many holes to fit the map:\n\t\tRetry with less.\nQuitting...", RUNTIME);
+            kill(0, SIGINT);
+        }
+    }
+
+    x = rand() % SO_WIDTH;
+    y = rand() % SO_HEIGHT;
+
+    if (check_no_adjacent_holes(matrix, x, y) == 0) {
+        (*matrix)[x][y].state = HOLE;
+    } else {
+        i++;
+    }
+
+    /* To stop the user from using too many sources */
+    start_time = time(NULL);
+    for (i = 0; i < configuration->SO_SOURCES; i++) {
+        log_message("HOLE", RUNTIME);
+        if (time(NULL) - start_time > 1) {
+            for (x = 0; x < SO_WIDTH; x++) {
+                for (y = 0; y < SO_HEIGHT; y++) {
+                    if ((*matrix)[x][y].state != HOLE) {
+                        (*matrix)[x][y].state = SOURCE;
+                    } else {
+                        i--;
+                    }
+                    if (time(NULL) - start_time > 3) {
+                        log_message("You selected too many sources to fit the map:\n\t\tRetry with less.\nQuitting...",
+                                    RUNTIME);
+                        kill(0, SIGINT);
+                    }
+                }
+            }
+        } else {
+            x = rand() % SO_WIDTH;
+            y = rand() % SO_HEIGHT;
+            if ((*matrix)[x][y].state == FREE) {
+                (*matrix)[x][y].state = SOURCE;
+                (*source_list_ptr)[i].x = x;
+                (*source_list_ptr)[i].y = y;
+            } else {
+                i--;
+            }
+        }
+    }
 }
 
 /**
@@ -324,11 +489,75 @@ void print_map(cell (*map)[][SO_HEIGHT]) {
 }
 
 void execute_source(int arg) {
-
+    char arg_buffer[5];
+    char *args[3];
+    sprintf(arg_buffer, "%d", arg);
+    args[0] = "source";
+    args[1] = arg_buffer;
+    args[2] = NULL;
+    execv("source", args);
 }
 
 void execute_taxi() {
+    map_point p;
+    int x;
+    int y;
+    int found = 0;
+    int start_time;
+    char arg_x[5];
+    char arg_y[5];
+    char arg_min[5];
+    char arg_max[5];
+    char arg_time[5];
+    char arg_sources[5];
+    char *args[8];
+    args[0] = "taxi";
+    srand(time(NULL) ^ (getpid() << 16));
+    start_time = time(NULL);
+    while (found != 1) {
+        if (time(NULL) - start_time > 1) {
+            for (x = 0; x < SO_WIDTH; x++) {
+                for (y = 0; y < SO_HEIGHT; y++) {
+                    if ((*map_ptr)[x][y].state != HOLE &&
+                        (*map_ptr)[p.x][p.y].traffic < (*map_ptr)[p.x][p.y].capacity) {
+                        found = 1;
+                        continue;
+                    } else if (time(NULL) - start_time > 3) {
+                        log_message("Could not fit taxi", DB);
+                        exit(EXIT_SUCCESS);
+                    }
+                }
+            }
+        } else {
+            x = rand() % SO_WIDTH;
+            y = rand() % SO_HEIGHT;
+            if (x >= 0 && x < SO_WIDTH && y >= 0 && y < SO_HEIGHT) {
+                p.x = x;
+                p.y = y;
+                if ((*map_ptr)[p.x][p.y].state != HOLE &&
+                    ((*map_ptr)[p.x][p.y].traffic < (*map_ptr)[p.x][p.y].capacity)) {
+                    found = 1;
+                }
+            }
+        }
+    }
 
+    sprintf(arg_x, "%d", x);
+    args[1] = arg_x;
+    sprintf(arg_y, "%d", y);
+    args[2] = arg_y;
+    sprintf(arg_min, "%d", configuration.SO_TIMENSEC_MIN);
+    args[3] = arg_min;
+    sprintf(arg_max, "%d", configuration.SO_TIMENSEC_MAX);
+    args[4] = arg_max;
+    sprintf(arg_time, "%d", configuration.SO_TIMEOUT);
+    args[5] = arg_time;
+    sprintf(arg_sources, "%d", configuration.SO_SOURCES);
+    args[6] = arg_sources;
+    args[7] = NULL;
+
+    execv("taxi", args);
+    exit(EXIT_SUCCESS);
 }
 
 void handler(int signal) {
@@ -410,5 +639,11 @@ void handler(int signal) {
 
         case SIGTSTP:
             break;
+    }
+}
+
+void log_message(char *message, enum level l) {
+    if (l <= DEBUG) {
+        printf("[master-%d] %s\n", getpid(), message);
     }
 }

@@ -1,4 +1,5 @@
 #include "source.h"
+#include "general.h"
 
 master_message msg_master;
 cell (*map_ptr)[][SO_HEIGHT];
@@ -125,16 +126,126 @@ int main(int argc, char **argv) {
     } else {
         printf("semaphore=%d\n", semaphore);
     }
+    /* END INIT */
+
+    sem_sync_source(semaphore);
+
+    log_message("Going into execution cycle", DB);
+    while (1) {
+        nanosleep(&message_interval, NULL);
+        while (found != 1) {
+            log_message("Generating message", -1);
+            message.destination.x = rand() % SO_WIDTH;
+            message.destination.y = rand() % SO_HEIGHT;
+            if (message.destination.x >= 0 && message.destination.y < SO_WIDTH && message.destination.y >= 0 &&
+                message.destination.y < SO_HEIGHT) {
+                lock(mutex);
+                *readers++;
+                if (*readers == 1) {
+                    sem_wait(message.destination, writers);
+                }
+                unlock(mutex);
+                found = cell_is_free(map_ptr, message.destination);
+                lock(mutex);
+                *readers--;
+                if (*readers == 0) {
+                    sem_signal(message.destination, writers);
+                }
+                unlock(mutex);
+            }
+        }
+        log_message("Sending message", SILENCE);
+        if (0) {
+            printf("\tmsg((%ld),(%d,%d))\n", message.type, message.destination.x, message.destination.y);
+        }
+        if (msgsnd(id_message_queue_source_taxi, &message, sizeof(map_point), IPC_NOWAIT) < 0) {
+            log_message("Queue full, try again", SILENCE);
+            nanosleep(&message_interval, NULL);
+            found = 0;
+            continue;
+        }
+
+        msg_master.requests++;
+        found = 0;
+    }
 }
 
 int sem_sync_source(int semaphore) {
-    return 1;
+    struct sembuf buf;
+    buf.sem_num = 0;
+    buf.sem_op = 0;
+    buf.sem_flg = 0;
+    if (semop(semaphore, &buf, 1) < 0) {
+        return -1;
+    } else {
+        return 0;
+    }
 }
 
 void user_request() {
+    message msg;
+    int found;
+    if (sem_sync_source(semaphore)) {
+        kill(getppid(), SIGUSR2);
+    }
+    found = 1;
 
+    while (found != 0) {
+        msg.destination.x = rand() % SO_WIDTH;
+        msg.destination.y = rand() % SO_HEIGHT;
+        if (msg.destination.x >= 0 && msg.destination.x < SO_WIDTH &&
+            msg.destination.y >= 0 && msg.destination.y < SO_HEIGHT) {
+            lock(mutex);
+            *readers++;
+            if (*readers == 1) {
+                sem_wait(msg.destination, writers);
+            }
+            unlock(mutex);
+            found = cell_is_free(map_ptr, msg.destination);
+            lock(mutex);
+            *readers--;
+            if (*readers == 0) {
+                sem_signal(msg.destination, writers);
+            }
+            unlock(mutex);
+        }
+        found = 0;
+    }
+
+    log_message(ANSI_COLOR_RED "Sending message:" ANSI_COLOR_RESET, RUNTIME);
+    printf("\tmsg((%ld),(%d,%d))\n", msg.type, msg.destination.x, msg.destination.y);
+    msgsnd(id_message_queue_source_taxi, &msg, sizeof(map_point), 0);
+    msg_master.requests++;
+    return;
 }
 
 void handler(int signal) {
+    switch (signal) {
+        case SIGALRM:
+            raise(SIGINT);
+            break;
 
+        case SIGINT:
+            log_message("Finishing up...", SILENCE);
+            shmdt(map_ptr);
+            shmdt(readers);
+            msgsnd(id_message_queue_master_map_source, &msg_master, sizeof(int), 1);
+            log_message("Received SIGUSR1", RUNTIME);
+            exit(EXIT_SUCCESS);
+
+        case SIGUSR1:
+            log_message("Received SIUSR1", RUNTIME);
+            break;
+
+        case SIGTSTP:
+            log_message("Received SIGTSTP", RUNTIME);
+            user_request();
+            break;
+    }
+}
+
+void log_message(char *message, enum level l) {
+    if (l <= DEBUG) {
+        printf("[master-%d] %s\n", getpid(), message);
+    }
 }
