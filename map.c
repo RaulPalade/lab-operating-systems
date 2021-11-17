@@ -196,23 +196,131 @@ int main(int argc, char **argv) {
 }
 
 void unblock(int semaphore) {
-
+    struct sembuf buf;
+    buf.sem_num = 0;
+    buf.sem_op = 1;
+    buf.sem_flg = 0;
+    if (semop(semaphore, &buf, 1) < 0) {
+        EXIT_ON_ERROR
+    }
 }
 
 void parse_configuration(simulation_configuration *configuration) {
+    FILE *file;
+    char s[16];
+    char c;
+    int n;
+    int i = 0;
+    char filename[] = "taxicab.conf";
+    file = fopen(filename, "r");
 
+    while (fscanf(file, "%s", s) == 1) {
+        switch (s[0]) {
+            case '#':
+                do {
+                    c = fgetc(file);
+                } while (c != '\n');
+                break;
+
+            default:
+                fscanf(file, "%d\n", &n);
+                if (n < 0) {
+                    log_message("Configuration not valid", RUNTIME);
+                    kill(0, SIGINT);
+                }
+
+                if (strncmp(s, "SO_HOLES", 8) == 0) {
+                    configuration->SO_HOLES = n;
+                } else if (strncmp(s, "SO_TOP_CELLS", 12) == 0) {
+                    configuration->SO_TOP_CELLS = n;
+                } else if (strncmp(s, "SO_SOURCES", 10) == 0) {
+                    configuration->SO_SOURCES = n;
+                } else if (strncmp(s, "SO_CAP_MIN", 10) == 0) {
+                    configuration->SO_CAP_MIN = n;
+                } else if (strncmp(s, "SO_CAP_MAX", 10) == 0) {
+                    configuration->SO_CAP_MAX = n;
+                } else if (strncmp(s, "SO_TAXI", 7) == 0) {
+                    configuration->SO_TAXI = n;
+                } else if (strncmp(s, "SO_TIMENSEC_MIN", 15) == 0) {
+                    configuration->SO_TIMENSEC_MIN = n;
+                } else if (strncmp(s, "SO_TIMENSEC_MAX", 15) == 0) {
+                    configuration->SO_TIMENSEC_MAX = n;
+                } else if (strncmp(s, "SO_TIMEOUT", 10) == 0) {
+                    configuration->SO_TIMEOUT = n;
+                } else if (strncmp(s, "SO_DURATION", 11) == 0) {
+                    configuration->SO_DURATION = n;
+                }
+                i++;
+        }
+    }
+
+    if (i < 10) {
+        log_message("Configuration not valid, less than 10 parameters", RUNTIME);
+        kill(0, SIGINT);
+    }
+
+    fclose(file);
 }
 
+/**
+ * Check for adjacent cells at matrix[x][y] marked as HOLE
+ */
 int check_no_adjacent_holes(cell (*matrix)[][SO_HEIGHT], int x, int y) {
-    return 1;
+    int found_adjcatent_holes = 0;
+    int i;
+    int j;
+    time_t start_time;
+    start_time = time(NULL);
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            if (time(NULL) - start_time > 1) {
+                log_message("You selected too many holes to fit the map:\n\t\tRetry with less.\nQuitting...", RUNTIME);
+                kill(0, SIGINT);
+            }
+            if ((x + i - 1) >= 0 &&
+                (x + i - 1) <= SO_WIDTH &&
+                (y + j - 1) >= 0 &&
+                (y + j - 1) <= SO_HEIGHT &&
+                (*matrix)[x + i - 1][y + j - 1].state == HOLE) {
+                found_adjcatent_holes = 1;
+            }
+        }
+    }
+
+    return found_adjcatent_holes;
 }
 
 void generate_map(cell (*matrix)[][SO_HEIGHT], simulation_configuration *configuration) {
 
 }
 
-void print_map(cell (*matrix)[][SO_HEIGHT]) {
+/**
+ * Print on stdout the map in a readable format:
+ * [ ] for FREE Cells
+ * [S] for SOURCE Cells
+ * [#] for HOLE Cells
+ */
+void print_map(cell (*map)[][SO_HEIGHT]) {
+    int x;
+    int y;
+    for (y = 0; y < SO_HEIGHT; y++) {
+        for (x = 0; x < SO_WIDTH; x++) {
+            switch ((*map)[x][y].state) {
+                case FREE:
+                    printf("[ ]");
+                    break;
 
+                case SOURCE:
+                    printf("[S]");
+                    break;
+
+                case HOLE:
+                    printf("[#]");
+            }
+        }
+        printf("\n");
+    }
+    printf("\n");
 }
 
 void execute_source(int arg) {
@@ -224,5 +332,83 @@ void execute_taxi() {
 }
 
 void handler(int signal) {
+    switch (signal) {
+        case SIGINT:
+            if (DEBUG) {
+                printf("\n============== CLOSING ==============\n");
+            }
+            executing = 0;
+            msgsnd(id_message_queue_master_map_source, &top_cells, sizeof(int), IPC_NOWAIT);
+            while (wait(NULL) > 0) {
 
+            }
+            shmdt(map_ptr);
+            shmdt(source_list_ptr);
+            shmdt(readers);
+            if (shmctl(id_shared_memory_sources, IPC_RMID, NULL)) {
+                printf("Error in shctl sources\n");
+            }
+            if (shmctl(id_shared_memory_readers, IPC_RMID, NULL)) {
+                printf("Error in shctl readers\n");
+            }
+
+            if (msgctl(id_message_queue_source_taxi, IPC_RMID, NULL)) {
+                printf("Error in msgctl source-taxi\n");
+            }
+            if (semctl(writers, 0, IPC_RMID)) {
+                printf("Error in semctl writers\n");
+            }
+            if (semctl(semaphore, 0, IPC_RMID)) {
+                printf("Error in semctl semaphore\n");
+            }
+            if (semctl(mutex, 0, IPC_RMID)) {
+                printf("Error in semctl mutex\n");
+            }
+            log_message("Graceful exit successful", DB);
+            kill(getppid(), SIGUSR2);
+            exit(EXIT_SUCCESS);
+
+        case SIGALRM:
+            executing = 0;
+            break;
+
+        case SIGQUIT:
+            shmdt(map_ptr);
+            shmdt(source_list_ptr);
+            shmdt(readers);
+            if (shmctl(id_shared_memory_sources, IPC_RMID, NULL)) {
+                printf("Error in shctl sources\n");
+            }
+            if (shmctl(id_shared_memory_readers, IPC_RMID, NULL)) {
+                printf("Error in shctl readers\n");
+            }
+
+            if (msgctl(id_message_queue_source_taxi, IPC_RMID, NULL)) {
+                printf("Error in msgctl source-taxi\n");
+            }
+            if (semctl(writers, 0, IPC_RMID)) {
+                printf("Error in semctl writers\n");
+            }
+            if (semctl(semaphore, 0, IPC_RMID)) {
+                printf("Error in semctl semaphore\n");
+            }
+            if (semctl(mutex, 0, IPC_RMID)) {
+                printf("Error in semctl mutex\n");
+            }
+            log_message("Graceful exit successful", DB);
+            kill(getppid(), SIGUSR2);
+            exit(EXIT_SUCCESS);
+
+        case SIGUSR1:
+            log_message("Received SIGUSR1", DB);
+            dead_taxis++;
+            break;
+
+        case SIGUSR2:
+            log_message("Received SIGUSR2", DB);
+            break;
+
+        case SIGTSTP:
+            break;
+    }
 }
