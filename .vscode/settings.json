@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "general.h": "c",
+    "master.h": "c"
+  }
+}
