@@ -9,11 +9,13 @@ void increase_traffic_at_point(map_point);
 
 void decrease_traffic_at_point(map_point);
 
-void move_to_point(map_point);
+int can_transit(map_point);
 
-map_point get_near_source();
+map_point get_near_source(int *);
 
 void check_time_out();
+
+void move_to_point(map_point);
 
 void print_report();
 
