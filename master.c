@@ -1,8 +1,8 @@
 #include "util.h"
 #include "master.h"
 
-int ledger_size = 0;
-int block_size = 0;
+static int ledger_size = 0;
+static int block_size = 0;
 ledger master_ledger;
 
 int main() {
@@ -34,26 +34,37 @@ int main() {
     t3.status = ABORTED;
 
     block.id = 0;
-    block.transactions[0] = t1;
-    block.transactions[1] = t2;
-    block.transactions[2] = t3;    
-    add_to_ledger(block);
-    
+    add_to_block(&block, t1);
+    add_to_block(&block, t2);
+    add_to_block(&block, t3);
 
-    /* printf("PRINTING ALL TRANSACTIONS\n");
+    print_block(&block);
+    printf("Printing bloc after removing t1\n");
+    remove_from_block(&block, t3);
+    printf("Block SIZE = %d\n", block_size);
+    print_block(&block);
+
+
+    /* add_to_ledger(block);
+    print_ledger(&master_ledger);
+    printf("Printing after removing block from ledger\n");
+    remove_from_ledger(block);
+    print_ledger(&master_ledger);
+
+    printf("PRINTING ALL TRANSACTIONS\n");
     transaction transactions[] = {t1, t2, t3};
     print_all_transactions(transactions);
-    printf("\n"); */
+    printf("\n");
 
-    /* printf("PRINT SINGLE BLOCK\n");
+    printf("PRINT SINGLE BLOCK\n");
     print_block(&block);
-    printf("\n"); */
+    printf("\n");
 
     printf("PRINTING LEDGER\n");
     print_ledger(&master_ledger);
     printf("\n");
 
-    /* printf("PRINTING CONFIGURATION\n");
+    printf("PRINTING CONFIGURATION\n");
     configuration configuration;
     read_configuration(&configuration);
     print_configuration(configuration);
@@ -68,7 +79,6 @@ void print_configuration(configuration configuration) {
     printf("SO_MIN_TRANS_GEN_NSEC = %d\n", configuration.SO_MIN_TRANS_GEN_NSEC);
     printf("SO_MAX_TRANS_GEN_NSEC = %d\n", configuration.SO_MAX_TRANS_GEN_NSEC);
     printf("SO_RETRY = %d\n", configuration.SO_RETRY);
-    printf("SO_TP_SIZE = %d\n", configuration.SO_TP_SIZE);
     printf("SO_MIN_TRANS_PROC_NSEC = %d\n", configuration.SO_MIN_TRANS_PROC_NSEC);
     printf("SO_MAX_TRANS_PROC_NSEC = %d\n", configuration.SO_MAX_TRANS_PROC_NSEC);
     printf("SO_BUDGET_INIT = %d\n", configuration.SO_BUDGET_INIT);
@@ -76,16 +86,11 @@ void print_configuration(configuration configuration) {
     printf("SO_FRIENDS_NUM = %d\n", configuration.SO_FRIENDS_NUM);
 }
 
-void print_transaction(transaction *t) {
-    char *status = get_status(*t);
-    printf("%15ld %15d %15d %15d %15d %24s\n", t->timestamp, t->sender, t->receiver, t->amount, t->reward, status);
-}
-
 void print_all_transactions(transaction *transactions) {
     int i;
     print_table_header();
     for (i = 0; i < 3; i++) {
-        print_transaction(&transactions[i]);
+        print_transaction(transactions[i]);
     }
     printf("-----------------------------------------------------------------------------------------------------\n");
 }
@@ -94,8 +99,8 @@ void print_block(block *block) {
     int i;
     printf("BLOCK ID: %d\n", block->id);
     print_table_header();
-    for (i = 0; i < SO_BLOCK_SIZE; i++) {
-        print_transaction(&block->transactions[i]);
+    for (i = 0; i < block_size; i++) {
+        print_transaction(block->transactions[i]);
     }
 }
 
@@ -104,10 +109,6 @@ void print_ledger(ledger *ledger) {
     for (i = 0; i < ledger_size; i++) {
         print_block(&ledger->blocks[i]);
         printf("-----------------------------------------------------------------------------------------------------\n");
-        if(&ledger->blocks[i] == NULL) {
-            printf("exit\n");
-            break;
-        }
     }
     printf("-----------------------------------------------------------------------------------------------------\n");
 }
@@ -124,7 +125,7 @@ void execute_user() {
 
 }
 
-void print_live_ledger_info(ledger *ledger) {
+void print_live_ledger_info() {
 
 }
 
@@ -136,29 +137,34 @@ void handler(int signal) {
 
 }
 
-char * get_status(transaction t){
-    char *transaction_status;
-    if (t.status == PROCESSING) {
-        transaction_status = ANSI_COLOR_YELLOW "PROCESSING" ANSI_COLOR_RESET;
-    }
-    if (t.status == COMPLETED) {
-        transaction_status = ANSI_COLOR_GREEN "COMPLETED" ANSI_COLOR_RESET;
-    }
-    if (t.status == ABORTED) {
-        transaction_status = ANSI_COLOR_RED "ABORTED" ANSI_COLOR_RESET;
+int add_to_block(block *block, transaction t) {
+    int added = 0;
+    if (block_size < SO_BLOCK_SIZE) {
+        (*block).transactions[block_size] = t;
+        block_size++;
+        added = 1;
+    } else {
+        printf(ANSI_COLOR_RED "Block size exceeded\n" ANSI_COLOR_RESET);
     }
 
-    return transaction_status;
+    return added;
 }
 
-void print_table_header() {
-    printf("-----------------------------------------------------------------------------------------------------\n");
-    printf("%15s %15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD", "STATUS");
-    printf("-----------------------------------------------------------------------------------------------------\n");
-}
+int remove_from_block(block *block, transaction t) {
+    int removed = 0;
+    int i;
+    int position;
+    for (i = 0; i < block_size && !removed; i++) {
+        if ((*block).transactions[i].timestamp == t.timestamp && (*block).transactions[i].sender == t.sender) {
+            for (position = i; position < block_size; position++) {
+                (*block).transactions[position] = (*block).transactions[position + 1];
+            }
+            block_size--;
+            removed = 1;
+        }
+    }
 
-int add_to_block(block *block, transaction *transaction) {
-    
+    return removed;
 }
 
 int add_to_ledger(block block) {
@@ -170,6 +176,25 @@ int add_to_ledger(block block) {
     } else {
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
+    printf("Blocks in the ledger: %d\n", ledger_size);
+    printf("Blocks available: %d\n", SO_REGISTRY_SIZE - ledger_size);
 
     return added;
+}
+
+int remove_from_ledger(block block) {
+    int removed = 0;
+    int i;
+    int position;
+    for (i = 0; i < block_size && !removed; i++) {
+        if (master_ledger.blocks[i].id == block.id) {
+            for (position = i; position < block_size; position++) {
+                master_ledger.blocks[position] = master_ledger.blocks[position + 1];
+            }
+            ledger_size--;
+            removed = 1;
+        }
+    }
+
+    return removed;
 }

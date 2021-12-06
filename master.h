@@ -4,8 +4,6 @@
 
 void print_configuration(configuration);
 
-void print_transaction(transaction *);
-
 void print_all_transactions(transaction *);
 
 void print_block(block *);
@@ -18,18 +16,18 @@ void execute_node();
 
 void execute_user();
 
-void print_live_ledger_info(ledger *);
+void print_live_ledger_info();
 
 void print_final_report();
 
 void handler(int);
 
-char * get_status(transaction);
+int add_to_block(block *, transaction);
 
-void print_table_header();
-
-int add_to_block(block *, transaction *transaction);
+int remove_from_block(block *, transaction);
 
 int add_to_ledger(block block);
+
+int remove_from_ledger(block block);
 
 #endif

@@ -35,8 +35,6 @@ void read_configuration(configuration *configuration) {
                     configuration->SO_MAX_TRANS_GEN_NSEC = value;
                 } else if (strncmp(s, "SO_RETRY", 8) == 0) {
                     configuration->SO_RETRY = value;
-                } else if (strncmp(s, "SO_TP_SIZE", 10) == 0) {
-                    configuration->SO_TP_SIZE = value;
                 } else if (strncmp(s, "SO_MIN_TRANS_PROC_NSEC", 22) == 0) {
                     configuration->SO_MIN_TRANS_PROC_NSEC = value;
                 } else if (strncmp(s, "SO_MAX_TRANS_PROC_NSEC", 22) == 0) {
@@ -119,4 +117,33 @@ void unlock(int semaphore) {
         kill(getppid(), SIGUSR1);
         raise(SIGINT);
     }
+}
+
+char * get_status(transaction t){
+    char *transaction_status;
+    if (t.status == UNKNOWN) {
+        transaction_status = ANSI_COLOR_MAGENTA "UNKNOWN" ANSI_COLOR_RESET;
+    }
+    if (t.status == PROCESSING) {
+        transaction_status = ANSI_COLOR_YELLOW "PROCESSING" ANSI_COLOR_RESET;
+    }
+    if (t.status == COMPLETED) {
+        transaction_status = ANSI_COLOR_GREEN "COMPLETED" ANSI_COLOR_RESET;
+    }
+    if (t.status == ABORTED) {
+        transaction_status = ANSI_COLOR_RED "ABORTED" ANSI_COLOR_RESET;
+    }
+
+    return transaction_status;
+}
+
+void print_transaction(transaction t) {
+    char *status = get_status(t);
+    printf("%15ld %15d %15d %15d %15d %24s\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward, status);
+}
+
+void print_table_header() {
+    printf("-----------------------------------------------------------------------------------------------------\n");
+    printf("%15s %15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD", "STATUS");
+    printf("-----------------------------------------------------------------------------------------------------\n");
 }

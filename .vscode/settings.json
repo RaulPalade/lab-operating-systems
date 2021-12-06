@@ -1,6 +1,7 @@
 {
   "files.associations": {
     "general.h": "c",
-    "master.h": "c"
+    "master.h": "c",
+    "util.h": "c"
   }
 }

@@ -17,6 +17,7 @@
 
 #define SO_BLOCK_SIZE 3
 #define SO_REGISTRY_SIZE 100
+#define SO_TP_SIZE 10
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -32,7 +33,7 @@
         raise(SIGINT);                                                                                          \
     }
 
-enum transaction_status {PROCESSING, COMPLETED, ABORTED};
+enum transaction_status {UNKNOWN, PROCESSING, COMPLETED, ABORTED};
 
 typedef struct {
     int SO_USERS_NUM;
@@ -41,11 +42,8 @@ typedef struct {
     int SO_MIN_TRANS_GEN_NSEC;
     int SO_MAX_TRANS_GEN_NSEC;
     int SO_RETRY;
-    int SO_TP_SIZE;
-    /* int SO_BLOCK_SIZE; */
     int SO_MIN_TRANS_PROC_NSEC;
     int SO_MAX_TRANS_PROC_NSEC;
-    /* int SO_REGISTRY_SIZE; */
     int SO_BUDGET_INIT;
     int SO_SIM_SEC;
     int SO_FRIENDS_NUM;
@@ -140,5 +138,19 @@ void lock(int);
  * if one is doing it.
  */ 
 void unlock(int);
+
+void print_configuration(configuration);
+
+void print_transaction(transaction);
+
+void print_all_transactions(transaction *);
+
+void print_block(block *);
+
+void print_ledger(ledger *);
+
+char * get_status(transaction);
+
+void print_table_header();
 
 #endif
