@@ -6,7 +6,7 @@ static int block_size = 0;
 ledger master_ledger;
 
 int main() {
-    int i;
+/*     int i;
     block block;
 
     transaction t1;
@@ -42,7 +42,7 @@ int main() {
     printf("Printing bloc after removing t1\n");
     remove_from_block(&block, t3);
     printf("Block SIZE = %d\n", block_size);
-    print_block(&block);
+    print_block(&block); */
 
 
     /* add_to_ledger(block);
@@ -135,66 +135,4 @@ void print_final_report() {
 
 void handler(int signal) {
 
-}
-
-int add_to_block(block *block, transaction t) {
-    int added = 0;
-    if (block_size < SO_BLOCK_SIZE) {
-        (*block).transactions[block_size] = t;
-        block_size++;
-        added = 1;
-    } else {
-        printf(ANSI_COLOR_RED "Block size exceeded\n" ANSI_COLOR_RESET);
-    }
-
-    return added;
-}
-
-int remove_from_block(block *block, transaction t) {
-    int removed = 0;
-    int i;
-    int position;
-    for (i = 0; i < block_size && !removed; i++) {
-        if ((*block).transactions[i].timestamp == t.timestamp && (*block).transactions[i].sender == t.sender) {
-            for (position = i; position < block_size; position++) {
-                (*block).transactions[position] = (*block).transactions[position + 1];
-            }
-            block_size--;
-            removed = 1;
-        }
-    }
-
-    return removed;
-}
-
-int add_to_ledger(block block) {
-    int added = 0;
-    if (ledger_size < SO_REGISTRY_SIZE) {
-        master_ledger.blocks[ledger_size] = block;
-        ledger_size++;
-        added = 1;
-    } else {
-        printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
-    }
-    printf("Blocks in the ledger: %d\n", ledger_size);
-    printf("Blocks available: %d\n", SO_REGISTRY_SIZE - ledger_size);
-
-    return added;
-}
-
-int remove_from_ledger(block block) {
-    int removed = 0;
-    int i;
-    int position;
-    for (i = 0; i < block_size && !removed; i++) {
-        if (master_ledger.blocks[i].id == block.id) {
-            for (position = i; position < block_size; position++) {
-                master_ledger.blocks[position] = master_ledger.blocks[position + 1];
-            }
-            ledger_size--;
-            removed = 1;
-        }
-    }
-
-    return removed;
 }

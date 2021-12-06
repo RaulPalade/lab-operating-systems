@@ -22,12 +22,4 @@ void print_final_report();
 
 void handler(int);
 
-int add_to_block(block *, transaction);
-
-int remove_from_block(block *, transaction);
-
-int add_to_ledger(block block);
-
-int remove_from_ledger(block block);
-
 #endif
