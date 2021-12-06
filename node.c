@@ -43,6 +43,7 @@ int main() {
     print_transaction(t1);
     execute_transaction(&t1);
     print_transaction(t1);
+    printf("END\n");
 
     return 0;
 }
