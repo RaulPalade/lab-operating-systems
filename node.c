@@ -23,14 +23,7 @@ static int block_id = 1;
  */
 
 
-int main() {
-    int result = test_lifecycle();
-
-    if (result) {
-        printf("CORRECT\n");
-    } else {
-        printf("WRONG\n");
-    }
+int main() {    
 
     return 0;
 }
@@ -164,22 +157,6 @@ block new_block() {
     block_id++;
 }
 
-// NEED TO BE MODIFIED (MOVE TO USER PROCESS)
-transaction new_transaction(pid_t receiver, int amount, int reward) {
-    transaction transaction;
-    transaction.timestamp = time(NULL);
-    transaction.sender = getpid();
-    transaction.receiver = receiver;
-    transaction.amount = amount;
-    transaction.reward = reward;
-    transaction.status = PROCESSING;
-    nanosleep(&request, &remaining);
-
-    add_to_transaction_pool(transaction);
-    
-    return transaction;
-}
-
 transaction new_reward_transaction(pid_t receiver, int amount) {
     transaction transaction;
     transaction.timestamp = time(NULL);
@@ -209,7 +186,7 @@ transaction get_random_transaction() {
 }
 
 // TO REMOVE
-int test_lifecycle() {
+/* int test_lifecycle() {
     int correct = 0;
     int added_to_block = 0;
     int added_to_ledger = 0;
@@ -245,7 +222,7 @@ int test_lifecycle() {
     print_transaction_pool();
 
     return correct;
-}
+} */
 
 void print_transaction_pool() {
     int i;

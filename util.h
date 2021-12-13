@@ -15,7 +15,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#define SO_BLOCK_SIZE 3
+#define SO_BLOCK_SIZE 5
 #define SO_REGISTRY_SIZE 100
 #define SO_TP_SIZE 10
 
@@ -34,6 +34,8 @@
     }
 
 enum transaction_status {UNKNOWN, PROCESSING, COMPLETED, ABORTED};
+
+enum {SECS_TO_SLEEP = 1, NSEC_TO_SLEEP = 500000000};
 
 typedef struct {
     int SO_USERS_NUM;

@@ -5,6 +5,18 @@ static int ledger_size = 0;
 static int block_size = 0;
 ledger master_ledger;
 
+/**
+ * MASTER PROCESS
+ * 1) Acquire general semaphore to init resources
+ * 2) Read configuration
+ * 3) Init ledger
+ * 4) Init nodes
+ * 5) Init users
+ * 6) Release general semaphore 
+ * 7) Print node and user budget each second
+ * 8) Stop all nodes and users at the end of the simulation
+ * 9) Print final report
+ */
 int main() {
 /*     int i;
     block block;
