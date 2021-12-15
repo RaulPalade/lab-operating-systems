@@ -1,6 +1,7 @@
 #ifndef __TEST_H_
 #define __TEST_H_
 #define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,8 +18,8 @@
 #include <sys/wait.h>
 
 #define SO_BLOCK_SIZE 5
-#define SO_REGISTRY_SIZE 100
-#define SO_TP_SIZE 10
+#define SO_REGISTRY_SIZE 5
+#define SO_TP_SIZE 20
 #define SENDER_TRANSACTION_REWARD -1
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -35,9 +36,11 @@
         raise(SIGINT);                                                                                          \
     }
 
-enum transaction_status {UNKNOWN, PROCESSING, COMPLETED, ABORTED};
+#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
-enum {SECS_TO_SLEEP = 1, NSEC_TO_SLEEP = 500000000};
+enum transaction_status {
+    UNKNOWN, PROCESSING, COMPLETED, ABORTED
+};
 
 typedef struct {
     int SO_USERS_NUM;
@@ -75,22 +78,10 @@ typedef struct {
     transaction transactions[SO_TP_SIZE];
 } transaction_pool;
 
-typedef struct {
-    int last_block_id;
-    int balance;
-} user_balance;
-
-union semun {
-    int val;
-    struct semid_ds *buf;
-    unsigned short *array;
-    struct seminfo *__buf;
-};
-
 /* UTIL FUNCTIONS */
 void read_configuration(configuration *); /* MASTER */
 
-char * get_status(transaction); /* NODE-USER */
+char *get_status(transaction); /* NODE-USER */
 /* END UTIL FUNCTIONS */
 
 
@@ -110,21 +101,17 @@ int remove_from_transaction_pool(transaction);
 
 int add_to_block(block *, transaction);
 
-int remove_from_block(block *, transaction);
-
 int execute_transaction(transaction *);
 
 int ledger_has_transaction(ledger *, transaction);
 
 int add_to_ledger(ledger *, block block);
 
-int remove_from_ledger(ledger *, block block);
-
 block new_block();
 
 transaction new_reward_transaction(pid_t, int);
 
-transaction get_random_transaction();
+transaction *extract_transaction_block_from_pool();
 /* END NODE FUNCTIONS */
 
 
@@ -144,7 +131,7 @@ void print_configuration(configuration);
 
 void print_transaction(transaction);
 
-void print_block(block *);
+void print_block(block);
 
 void print_ledger(ledger *);
 
@@ -171,5 +158,15 @@ void lock(int);
 void unlock(int);
 
 void unblock(int);
+
 /* END SEMAPHORE FUNCTIONS */
+
+void reset_transaction_pool();
+
+void reset_ledger(ledger *);
+
+int array_contains(int [], int);
+
+int equal_transaction(transaction, transaction);
+
 #endif

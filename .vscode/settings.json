@@ -3,6 +3,7 @@
     "general.h": "c",
     "master.h": "c",
     "util.h": "c",
-    "math.h": "c"
+    "math.h": "c",
+    "test.h": "c"
   }
 }

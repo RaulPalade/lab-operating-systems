@@ -1,2 +1,0 @@
-list all shared resources
-check functions with *parameters: ONLY MODIFY

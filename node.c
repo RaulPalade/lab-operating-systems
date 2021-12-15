@@ -1,30 +1,26 @@
 #include "util.h"
 #include "node.h"
 
+ledger (*master_ledger);
 transaction_pool pool;
-static int transaction_pool_size = 0;
-struct timespec remaining;
-struct timespec request = {SECS_TO_SLEEP, NSEC_TO_SLEEP};
-ledger master_ledger;
+
 static int ledger_size = 0;
-static int block_size = 0;
-static int block_id = 1;
-
-
+static int transaction_pool_size = 0;
+static int balance = 100;
+static int block_id = 0;
+static int next_block_to_check = 0;
 
 /**
- * HOW IT WORKS?
- * 1) Receive transaction from User                     => MESSAGE QUEUE
- * 2) Add transaction received to transaction pool      => DONE
- * 3) Add transaction to block                          => DONE
- * 4) Add reward transaction to block                   => DONE
- * 5) Execute transaction                               => SIMULATING
- * 6) Remove transactions from transaction pool         => DONE
+ * NODE PROCESS
+ * 1) Receive transaction from User                     
+ * 2) Add transaction received to transaction pool      
+ * 3) Add transaction to block                          
+ * 4) Add reward transaction to block                   
+ * 5) Execute transaction                               
+ * 6) Remove transactions from transaction pool         
  */
 
-
-int main() {    
-
+int main() {
     return 0;
 }
 
@@ -46,7 +42,8 @@ int remove_from_transaction_pool(transaction t) {
     int i;
     int position;
     for (i = 0; i < transaction_pool_size && !removed; i++) {
-        if (pool.transactions[i].timestamp == t.timestamp && pool.transactions[i].sender == t.sender) {
+        if (pool.transactions[i].timestamp == t.timestamp && pool.transactions[i].sender == t.sender
+            && pool.transactions[i].receiver == t.receiver) {
             for (position = i; position < transaction_pool_size; position++) {
                 pool.transactions[position] = pool.transactions[position + 1];
             }
@@ -58,103 +55,59 @@ int remove_from_transaction_pool(transaction t) {
     return removed;
 }
 
-int add_to_block(block *block, transaction t) {
-    int added = 0;
-    if (block_size < SO_BLOCK_SIZE) {
-        (*block).transactions[block_size] = t;
-        block_size++;
-        added = 1;
-    } else {
-        printf(ANSI_COLOR_RED "Block size exceeded\n" ANSI_COLOR_RESET);
-    }
-
-    printf("Transactions in the block: %d\n", block_size);
-    printf("Transactions available for block with id %d:  %d\n", (*block).id, SO_REGISTRY_SIZE - block_size);
-
-    return added;
-}
-
-int remove_from_block(block *block, transaction t) {
-    int removed = 0;
-    int i;
-    int position;
-    for (i = 0; i < block_size && !removed; i++) {
-        if ((*block).transactions[i].timestamp == t.timestamp && (*block).transactions[i].sender == t.sender) {
-            for (position = i; position < block_size; position++) {
-                (*block).transactions[position] = (*block).transactions[position + 1];
-            }
-            block_size--;
-            removed = 1;
-        }
-    }
-
-    return removed;
-}
-
-// USEFUL
 int execute_transaction(transaction *t) {
     int executed = 0;
+    struct timespec interval;
+    interval.tv_sec = 1;
+    interval.tv_nsec = 0;
     printf("Executing transaction...\n");
-    nanosleep(&request, &remaining);
+    nanosleep(&interval, NULL);
     (*t).status = COMPLETED;
 
     return executed;
 }
 
-int ledger_has_transaction(transaction t) {
+int ledger_has_transaction(ledger *ledger, transaction t) {
     int found = 0;
     int i;
     int j;
 
     for (i = 0; i < ledger_size && !found; i++) {
-        for (j = 0; j < block_size; j++) {
-            if (master_ledger.blocks[i].transactions[j].timestamp == t.timestamp &&
-                master_ledger.blocks[i].transactions[j].sender == t.sender) {
+        for (j = 0; j < SO_BLOCK_SIZE; j++) {
+            if ((*ledger).blocks[i].transactions[j].timestamp == t.timestamp &&
+                (*ledger).blocks[i].transactions[j].sender == t.sender) {
                 found = 1;
             }
         }
+        next_block_to_check++;
     }
 
     return found;
 }
 
-int add_to_ledger(block block) {
+int add_to_ledger(ledger *ledger, block block) {
     int added = 0;
     if (ledger_size < SO_REGISTRY_SIZE) {
-        master_ledger.blocks[ledger_size] = block;
+        (*ledger).blocks[ledger_size] = block;
         ledger_size++;
         added = 1;
     } else {
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
-    printf("Blocks in the ledger: %d\n", ledger_size);
-    printf("Blocks available: %d\n", SO_REGISTRY_SIZE - ledger_size);
-
     return added;
 }
 
-int remove_from_ledger(block block) {
-    int removed = 0;
+block new_block(transaction transactions[]) {
     int i;
-    int position;
-    for (i = 0; i < block_size && !removed; i++) {
-        if (master_ledger.blocks[i].id == block.id) {
-            for (position = i; position < block_size; position++) {
-                master_ledger.blocks[position] = master_ledger.blocks[position + 1];
-            }
-            ledger_size--;
-            removed = 1;
-        }
-    }
-
-    return removed;
-}
-
-block new_block() {
     block block;
     block.id = block_id;
+    for (i = 0; i < SO_BLOCK_SIZE; i++) {
+        block.transactions[i] = transactions[i];
+    }
     block_id++;
+
+    return block;
 }
 
 transaction new_reward_transaction(pid_t receiver, int amount) {
@@ -168,61 +121,28 @@ transaction new_reward_transaction(pid_t receiver, int amount) {
     return transaction;
 }
 
-// NEED TO CORRECT IF CHECK
-transaction get_random_transaction() {
-    transaction transaction;
+transaction *extract_transaction_block_from_pool() {
+    int i;
+    int confirmed = 0;
     int lower = 0;
     int upper = transaction_pool_size;
     int random = 0;
-    srand(time(0));
-    random = (rand() % (upper - lower + 1)) + lower;
+    transaction *transactions = malloc(SO_BLOCK_SIZE * sizeof(transaction));
+    int numbers[SO_BLOCK_SIZE];
 
-    if (ledger_has_transaction(pool.transactions[random])) {
-        get_random_transaction();
+    srand(time(NULL));
+
+    while (confirmed < SO_BLOCK_SIZE) {
+        random = (rand() % (upper - lower)) + lower;
+        if (!array_contains(numbers, random)) {
+            numbers[confirmed] = random;
+            transactions[confirmed] = pool.transactions[random];
+            confirmed++;
+        }
     }
-    
-    transaction = pool.transactions[random];
-    return transaction;
+
+    return transactions;
 }
-
-// TO REMOVE
-/* int test_lifecycle() {
-    int correct = 0;
-    int added_to_block = 0;
-    int added_to_ledger = 0;
-    
-    printf("Creating new transactions...\n");
-    transaction t1 = new_transaction(222222, 20, 5);
-    transaction t2 = new_transaction(444444, 60, 15);
-    transaction t3 = new_transaction(666666, 30, 10);
-
-    transaction random_transaction = get_random_transaction();
-    transaction reward_transaction = new_reward_transaction(777777, 20);
-    
-    printf("\n");
-    printf("Adding transaction to block...\n");
-    nanosleep(&request, &remaining);
-    block block = new_block();
-    added_to_block = add_to_block(&block, random_transaction);
-    added_to_block = add_to_block(&block, reward_transaction);
-
-    printf("\n");
-    printf("Adding block to ledger...\n");
-    nanosleep(&request, &remaining);
-    added_to_ledger = add_to_ledger(block);
-
-    printf("\n");
-    printf("Removing transaction completed from pool...\n");
-    nanosleep(&request, &remaining);
-
-    print_transaction_pool();
-    if (added_to_block && added_to_ledger) {
-        correct = remove_from_transaction_pool(random_transaction);
-    }
-    print_transaction_pool();
-
-    return correct;
-} */
 
 void print_transaction_pool() {
     int i;
@@ -230,4 +150,16 @@ void print_transaction_pool() {
     for (i = 0; i < transaction_pool_size; i++) {
         print_transaction(pool.transactions[i]);
     }
+}
+
+void reset_transaction_pool() {
+    memset(&pool, 0, sizeof(pool));
+    transaction_pool_size = 0;
+}
+
+void reset_ledger(ledger *ledger) {
+    memset(master_ledger->blocks, 0, sizeof(master_ledger->blocks));
+    ledger_size = 0;
+    next_block_to_check = 0;
+    block_id = 0;
 }

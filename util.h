@@ -1,5 +1,7 @@
 #ifndef __UTIL_H_
 #define __UTIL_H_
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,8 +18,9 @@
 #include <sys/wait.h>
 
 #define SO_BLOCK_SIZE 5
-#define SO_REGISTRY_SIZE 100
-#define SO_TP_SIZE 10
+#define SO_REGISTRY_SIZE 5
+#define SO_TP_SIZE 20
+#define SENDER_TRANSACTION_REWARD -1
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -33,9 +36,11 @@
         raise(SIGINT);                                                                                          \
     }
 
-enum transaction_status {UNKNOWN, PROCESSING, COMPLETED, ABORTED};
+#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
-enum {SECS_TO_SLEEP = 1, NSEC_TO_SLEEP = 500000000};
+enum transaction_status {
+    UNKNOWN, PROCESSING, COMPLETED, ABORTED
+};
 
 typedef struct {
     int SO_USERS_NUM;
@@ -69,10 +74,12 @@ typedef struct {
     block blocks[SO_REGISTRY_SIZE];
 } ledger;
 
-/**
- * Read the initial configuration from file
- */
-void read_configuration(configuration *);
+union semun {
+    int val;
+    struct semid_ds *buf;
+    unsigned short *array;
+    struct seminfo *__buf;
+};
 
 /**
  * Synchronyze resources before the simulations starts.
@@ -82,7 +89,7 @@ void read_configuration(configuration *);
  * - Initialize the ledger as a shared memory
  * - Assign a default budget for each user
  * - Execute the first transaction for each user
- */ 
+ */
 void synchronize_resources(int);
 
 /**
@@ -106,7 +113,7 @@ void synchronize_resources(int);
  * 
  * @param semaphore semaphore used to protect the resource
  * @param id_block  id of the block to access
- */ 
+ */
 void acquire_resource(int, int);
 
 /**
@@ -120,7 +127,7 @@ void acquire_resource(int, int);
  * 
  * @param semaphore semaphore used to protect the resource
  * @param id_block  id of the block to release
- */ 
+ */
 void release_resource(int, int);
 
 /**
@@ -129,7 +136,7 @@ void release_resource(int, int);
  * are currently reading the proteted resource
  * No other process can overwrite the variable
  * if one is doing it.
- */ 
+ */
 void lock(int);
 
 /**
@@ -138,21 +145,36 @@ void lock(int);
  * are currently reading the proteted resource
  * No other process can overwrite the variable
  * if one is doing it.
- */ 
+ */
 void unlock(int);
+
+void unblock(int);
+
+/**
+ * Read the initial configuration from file
+ */
+void read_configuration(configuration *);
+
+char *get_status(transaction);
+
+int array_contains(int [], int);
+
+int equal_transaction(transaction, transaction);
 
 void print_configuration(configuration);
 
 void print_transaction(transaction);
 
-void print_all_transactions(transaction *);
-
-void print_block(block *);
+void print_block(block);
 
 void print_ledger(ledger *);
 
-char * get_status(transaction);
+void print_all_transactions(transaction *);
 
 void print_table_header();
+
+void print_live_ledger_info(ledger *);
+
+void print_final_report();
 
 #endif

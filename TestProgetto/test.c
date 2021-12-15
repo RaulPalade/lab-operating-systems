@@ -5,79 +5,35 @@ ledger (*master_ledger);
 transaction_pool pool;
 
 static int ledger_size = 0;
-static int block_size = 0;
 static int transaction_pool_size = 0;
 static int balance = 100;
 static int block_id = 0;
-static int last_block_confirmed = 0;
+static int next_block_to_check = 0;
 
-configuration conf;
-
-/* SEMAPHORE */
-int semaphore;
-
-/* SHARED MEMORY */
-int id_shared_memory_legder;
-
-static void test_add_tp_transaction_pool();
+static void test_add_to_transaction_pool();
 
 static void test_remove_from_transaction_pool();
 
 static void test_add_to_block();
 
-static void test_remove_from_block();
+static void test_add_to_ledger();
 
 static void test_ledger_has_transaction();
 
-static void test_add_to_ledger();
-
-static void test_remove_from_ledger();
-
-static void test_get_random_transaction();
+static void test_extract_transaction_block_from_pool();
 
 static void test_calculate_balance();
 
-/**
- * MASTER PROCESS
- * 1) Acquire general semaphore to init resources
- * 2) Read configuration
- * 3) Init nodes => assign initial budget through args in execve
- * 4) Init users
- * 5) Release general semaphore 
- * 6) Print node and user budget each second
- * 7) Stop all nodes and users at the end of the simulation
- * 8) Print final report
- */
-
-/**
- * NODE PROCESS
- * 1) Receive transaction from User                     
- * 2) Add transaction received to transaction pool      
- * 3) Add transaction to block                          
- * 4) Add reward transaction to block                   
- * 5) Execute transaction                               
- * 6) Remove transactions from transaction pool         
- */ 
-
-/**
- * USER PROCESS
- * 1) Calculate balance from ledger
- * 2) Extract random user
- * 3) Calculate user revenue (amount)
- * 4) Calculate node revenue (reward)
- * 5) Send transaction
- */ 
 int main() {
+
     UNITY_BEGIN();
 
-    RUN_TEST(test_add_tp_transaction_pool);
+    RUN_TEST(test_add_to_transaction_pool);
     RUN_TEST(test_remove_from_transaction_pool);
     RUN_TEST(test_add_to_block);
-    RUN_TEST(test_remove_from_block);
-    RUN_TEST(test_ledger_has_transaction);
     RUN_TEST(test_add_to_ledger);
-    RUN_TEST(test_remove_from_ledger);
-    RUN_TEST(test_get_random_transaction);
+    RUN_TEST(test_ledger_has_transaction);
+    RUN_TEST(test_extract_transaction_block_from_pool);
     RUN_TEST(test_calculate_balance);
 
     UNITY_END();
@@ -85,40 +41,237 @@ int main() {
     return 0;
 }
 
-static void test_add_tp_transaction_pool() {
-    
+static void test_add_to_transaction_pool() {
+    transaction t_to_add = new_transaction(111111, 100, 20);
+    int result = add_to_transaction_pool(t_to_add);
+    TEST_ASSERT_EQUAL(1, result);
+    TEST_ASSERT_EQUAL(1, transaction_pool_size);
+    TEST_ASSERT_EQUAL(t_to_add.timestamp, pool.transactions[0].timestamp);
+    TEST_ASSERT_EQUAL(t_to_add.sender, pool.transactions[0].sender);
+    TEST_ASSERT_EQUAL(t_to_add.receiver, pool.transactions[0].receiver);
+    TEST_ASSERT_EQUAL(t_to_add.amount, pool.transactions[0].amount);
+    TEST_ASSERT_EQUAL(t_to_add.reward, pool.transactions[0].reward);
+    TEST_ASSERT_EQUAL(t_to_add.status, pool.transactions[0].status);
+    reset_transaction_pool();
 }
 
 static void test_remove_from_transaction_pool() {
-
+    transaction t_to_remove = new_transaction(111111, 100, 20);
+    int result;
+    add_to_transaction_pool(t_to_remove);
+    result = remove_from_transaction_pool(t_to_remove);
+    TEST_ASSERT_EQUAL(1, result);
+    TEST_ASSERT_EQUAL(0, pool.transactions[0].timestamp);
+    TEST_ASSERT_EQUAL(0, pool.transactions[0].sender);
+    TEST_ASSERT_EQUAL(0, pool.transactions[0].receiver);
+    TEST_ASSERT_EQUAL(0, pool.transactions[0].amount);
+    TEST_ASSERT_EQUAL(0, pool.transactions[0].reward);
+    TEST_ASSERT_EQUAL(0, pool.transactions[0].status);
+    reset_transaction_pool();
 }
 
 static void test_add_to_block() {
+    int i;
+    block block;
+    transaction t1 = new_transaction(111111, 100, 20);
+    transaction t2 = new_transaction(111111, 100, 20);
+    transaction t3 = new_transaction(111111, 100, 20);
+    transaction t4 = new_transaction(111111, 100, 20);
+    transaction t5 = new_transaction(111111, 100, 20);
+    transaction transactions[SO_BLOCK_SIZE];
+    transactions[0] = t1;
+    transactions[1] = t2;
+    transactions[2] = t3;
+    transactions[3] = t4;
+    transactions[4] = t5;
+    block = new_block(transactions);
 
-}
-
-static void test_remove_from_block() {
-
-}
-
-static void test_ledger_has_transaction() {
-
+    TEST_ASSERT_EQUAL(1, block_id);
+    for (i = 0; i < SO_BLOCK_SIZE; i++) {
+        TEST_ASSERT_EQUAL(transactions[i].timestamp, block.transactions[i].timestamp);
+        TEST_ASSERT_EQUAL(transactions[i].sender, block.transactions[i].sender);
+        TEST_ASSERT_EQUAL(transactions[i].receiver, block.transactions[i].receiver);
+        TEST_ASSERT_EQUAL(transactions[i].amount, block.transactions[i].amount);
+        TEST_ASSERT_EQUAL(transactions[i].reward, block.transactions[i].reward);
+        TEST_ASSERT_EQUAL(transactions[i].status, block.transactions[i].status);
+    }
 }
 
 static void test_add_to_ledger() {
+    int result;
+    block block;
+    transaction t1 = new_transaction(111111, 100, 20);
+    transaction t2 = new_transaction(111111, 100, 20);
+    transaction t3 = new_transaction(111111, 100, 20);
+    transaction t4 = new_transaction(111111, 100, 20);
+    transaction t5 = new_transaction(111111, 100, 20);
+    transaction transactions[SO_BLOCK_SIZE];
+    transactions[0] = t1;
+    transactions[1] = t2;
+    transactions[2] = t3;
+    transactions[3] = t4;
+    transactions[4] = t5;
+    block = new_block(transactions);
 
+    master_ledger = malloc(SO_REGISTRY_SIZE * sizeof(ledger));
+
+    result = add_to_ledger(master_ledger, block);
+    TEST_ASSERT_EQUAL(1, ledger_size);
+    free(master_ledger);
 }
 
-static void test_remove_from_ledger() {
+static void test_ledger_has_transaction() {
+    int result;
+    block block;
+    transaction t1 = new_transaction(111111, 100, 20);
+    transaction t2 = new_transaction(111111, 100, 20);
+    transaction t3 = new_transaction(111111, 100, 20);
+    transaction t4 = new_transaction(111111, 100, 20);
+    transaction t5 = new_transaction(111111, 100, 20);
+    transaction transactions[SO_BLOCK_SIZE];
+    transactions[0] = t1;
+    transactions[1] = t2;
+    transactions[2] = t3;
+    transactions[3] = t4;
+    transactions[4] = t5;
+    block = new_block(transactions);
 
+    add_to_ledger(master_ledger, block);
+    result = ledger_has_transaction(master_ledger, t1);
+    TEST_ASSERT_EQUAL(1, result);
+    result = ledger_has_transaction(master_ledger, t2);
+    TEST_ASSERT_EQUAL(1, result);
+    result = ledger_has_transaction(master_ledger, t3);
+    TEST_ASSERT_EQUAL(1, result);
+    result = ledger_has_transaction(master_ledger, t4);
+    TEST_ASSERT_EQUAL(1, result);
+    result = ledger_has_transaction(master_ledger, t5);
+    TEST_ASSERT_EQUAL(1, result);
+    reset_ledger(master_ledger);
 }
 
-static void test_get_random_transaction() {
+static void test_extract_transaction_block_from_pool() {
+    int i;
+    int j;
+    int found = 0;
+    int equals = 0;
+    int totalChecks = 0;
+    transaction *transactions;
+    transaction t1 = new_transaction(111111, 100, 20);
+    transaction t2 = new_transaction(111111, 100, 20);
+    transaction t3 = new_transaction(111111, 100, 20);
+    transaction t4 = new_transaction(111111, 100, 20);
+    transaction t5 = new_transaction(111111, 100, 20);
+    transaction t6 = new_transaction(111111, 100, 20);
+    transaction t7 = new_transaction(111111, 100, 20);
+    transaction t8 = new_transaction(111111, 100, 20);
+    transaction t9 = new_transaction(111111, 100, 20);
+    transaction t10 = new_transaction(111111, 100, 20);
 
+    add_to_transaction_pool(t1);
+    add_to_transaction_pool(t2);
+    add_to_transaction_pool(t3);
+    add_to_transaction_pool(t4);
+    add_to_transaction_pool(t5);
+    add_to_transaction_pool(t6);
+    add_to_transaction_pool(t7);
+    add_to_transaction_pool(t8);
+    add_to_transaction_pool(t9);
+    add_to_transaction_pool(t10);
+
+    transactions = extract_transaction_block_from_pool();
+
+    for (i = 0; i < SO_BLOCK_SIZE; i++) {
+        for (j = 0; j < transaction_pool_size && !found; j++) {
+            if (equal_transaction(transactions[i], pool.transactions[j])) {
+                found = 1;
+                equals++;
+            }
+            totalChecks++;
+        }
+        found = 0;
+    }
+
+    TEST_ASSERT_EQUAL(5, equals);
 }
 
 static void test_calculate_balance() {
+    int result;
+    int tmp_balance;
 
+    block block1;
+    block block2;
+    block block3;
+
+    transaction t1 = new_transaction(111111, 100, 20);
+    transaction t2 = new_transaction(111111, 100, 20);
+    transaction t3 = new_transaction(111111, 100, 20);
+    transaction t4 = new_transaction(111111, 100, 20);
+    transaction t5 = new_transaction(111111, 100, 20);
+
+    transaction t6 = new_transaction(111111, 100, 20);
+    transaction t7 = new_transaction(111111, 100, 20);
+    transaction t8 = new_transaction(111111, 100, 20);
+    transaction t9 = new_transaction(111111, 100, 20);
+    transaction t10 = new_transaction(111111, 100, 20);
+
+    transaction t11 = new_transaction(111111, 100, 20);
+    transaction t12 = new_transaction(111111, 100, 20);
+    transaction t13 = new_transaction(111111, 100, 20);
+    transaction t14 = new_transaction(111111, 100, 20);
+    transaction t15 = new_transaction(111111, 100, 20);
+
+    transaction transactions1[SO_BLOCK_SIZE];
+    transaction transactions2[SO_BLOCK_SIZE];
+    transaction transactions3[SO_BLOCK_SIZE];
+
+    transactions1[0] = t1;
+    transactions1[1] = t2;
+    transactions1[2] = t3;
+    transactions1[3] = t4;
+    transactions1[4] = t5;
+
+    transactions2[0] = t6;
+    transactions2[1] = t7;
+    transactions2[2] = t8;
+    transactions2[3] = t9;
+    transactions2[4] = t10;
+
+    transactions3[0] = t11;
+    transactions3[1] = t12;
+    transactions3[2] = t13;
+    transactions3[3] = t14;
+    transactions3[4] = t15;
+
+    block1 = new_block(transactions1);
+    block2 = new_block(transactions2);
+    block3 = new_block(transactions3);
+
+    add_to_ledger(master_ledger, block1);
+    tmp_balance =
+            balance - t1.amount - t1.reward - t2.amount - t2.reward - t3.amount - t3.reward - t4.amount - t4.reward -
+            t5.amount - t5.reward;
+    result = calculate_balance();
+    TEST_ASSERT_EQUAL(tmp_balance, result);
+    TEST_ASSERT_EQUAL(1, next_block_to_check);
+
+    add_to_ledger(master_ledger, block2);
+    tmp_balance =
+            balance - t6.amount - t6.reward - t7.amount - t7.reward - t8.amount - t8.reward - t9.amount - t9.reward -
+            t10.amount - t10.reward;
+    result = calculate_balance();
+    TEST_ASSERT_EQUAL(tmp_balance, result);
+    TEST_ASSERT_EQUAL(2, next_block_to_check);
+
+    add_to_ledger(master_ledger, block3);
+    tmp_balance = balance - t11.amount - t11.reward - t12.amount - t12.reward - t13.amount - t13.reward - t14.amount -
+                  t14.reward - t15.amount - t15.reward;
+    result = calculate_balance();
+    TEST_ASSERT_EQUAL(tmp_balance, result);
+    TEST_ASSERT_EQUAL(3, next_block_to_check);
+
+    reset_ledger(master_ledger);
+    free(master_ledger);
 }
 
 /* UTIL FUNCTIONS */
@@ -168,7 +321,7 @@ void read_configuration(configuration *configuration) {
                 } else if (strncmp(s, "SO_FRIENDS_NUM", 14) == 0) {
                     configuration->SO_FRIENDS_NUM = value;
                 }
-                i++; 
+                i++;
         }
     }
     if (i < 10) {
@@ -241,7 +394,7 @@ void unlock(int semaphore) {
     }
 }
 
-char * get_status(transaction t){
+char *get_status(transaction t) {
     char *transaction_status;
     if (t.status == UNKNOWN) {
         transaction_status = ANSI_COLOR_MAGENTA "UNKNOWN" ANSI_COLOR_RESET;
@@ -273,7 +426,6 @@ void execute_user() {
 
 
 /* NODE FUNCTIONS */
-/* TEST */
 int add_to_transaction_pool(transaction t) {
     int added = 0;
     if (transaction_pool_size < SO_TP_SIZE - 1) {
@@ -287,13 +439,13 @@ int add_to_transaction_pool(transaction t) {
     return added;
 }
 
-/* TEST */
 int remove_from_transaction_pool(transaction t) {
     int removed = 0;
     int i;
     int position;
     for (i = 0; i < transaction_pool_size && !removed; i++) {
-        if (pool.transactions[i].timestamp == t.timestamp && pool.transactions[i].sender == t.sender) {
+        if (pool.transactions[i].timestamp == t.timestamp && pool.transactions[i].sender == t.sender
+            && pool.transactions[i].receiver == t.receiver) {
             for (position = i; position < transaction_pool_size; position++) {
                 pool.transactions[position] = pool.transactions[position + 1];
             }
@@ -305,44 +457,9 @@ int remove_from_transaction_pool(transaction t) {
     return removed;
 }
 
-/* TEST */
-int add_to_block(block *block, transaction t) {
-    int added = 0;
-    if (block_size < SO_BLOCK_SIZE) {
-        (*block).transactions[block_size] = t;
-        block_size++;
-        added = 1;
-    } else {
-        printf(ANSI_COLOR_RED "Block size exceeded\n" ANSI_COLOR_RESET);
-    }
-
-    printf("Transactions in the block: %d\n", block_size);
-    printf("Transactions available for block with id %d:  %d\n", (*block).id, SO_REGISTRY_SIZE - block_size);
-
-    return added;
-}
-
-/* TEST */
-int remove_from_block(block *block, transaction t) {
-    int removed = 0;
-    int i;
-    int position;
-    for (i = 0; i < block_size && !removed; i++) {
-        if ((*block).transactions[i].timestamp == t.timestamp && (*block).transactions[i].sender == t.sender) {
-            for (position = i; position < block_size; position++) {
-                (*block).transactions[position] = (*block).transactions[position + 1];
-            }
-            block_size--;
-            removed = 1;
-        }
-    }
-
-    return removed;
-}
-
 int execute_transaction(transaction *t) {
     int executed = 0;
-    struct timespec interval; 
+    struct timespec interval;
     interval.tv_sec = 1;
     interval.tv_nsec = 0;
     printf("Executing transaction...\n");
@@ -352,25 +469,24 @@ int execute_transaction(transaction *t) {
     return executed;
 }
 
-/* TEST */
 int ledger_has_transaction(ledger *ledger, transaction t) {
     int found = 0;
     int i;
     int j;
 
     for (i = 0; i < ledger_size && !found; i++) {
-        for (j = 0; j < block_size; j++) {
+        for (j = 0; j < SO_BLOCK_SIZE; j++) {
             if ((*ledger).blocks[i].transactions[j].timestamp == t.timestamp &&
                 (*ledger).blocks[i].transactions[j].sender == t.sender) {
                 found = 1;
             }
         }
+        next_block_to_check++;
     }
 
     return found;
 }
 
-/* TEST */
 int add_to_ledger(ledger *ledger, block block) {
     int added = 0;
     if (ledger_size < SO_REGISTRY_SIZE) {
@@ -381,34 +497,19 @@ int add_to_ledger(ledger *ledger, block block) {
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
-    printf("Blocks in the ledger: %d\n", ledger_size);
-    printf("Blocks available: %d\n", SO_REGISTRY_SIZE - ledger_size);
-
     return added;
 }
 
-/* TEST */
-int remove_from_ledger(ledger *ledger, block block) {
-    int removed = 0;
+block new_block(transaction transactions[]) {
     int i;
-    int position;
-    for (i = 0; i < block_size && !removed; i++) {
-        if ((*ledger).blocks[i].id == block.id) {
-            for (position = i; position < block_size; position++) {
-                (*ledger).blocks[position] = (*ledger).blocks[position + 1];
-            }
-            ledger_size--;
-            removed = 1;
-        }
-    }
-
-    return removed;
-}
-
-block new_block() {
     block block;
     block.id = block_id;
+    for (i = 0; i < SO_BLOCK_SIZE; i++) {
+        block.transactions[i] = transactions[i];
+    }
     block_id++;
+
+    return block;
 }
 
 transaction new_reward_transaction(pid_t receiver, int amount) {
@@ -422,22 +523,27 @@ transaction new_reward_transaction(pid_t receiver, int amount) {
     return transaction;
 }
 
-/* NEED TO CORRECT IF CHECK */
-/* TEST */
-transaction get_random_transaction() {
-    transaction transaction;
+transaction *extract_transaction_block_from_pool() {
+    int i;
+    int confirmed = 0;
     int lower = 0;
     int upper = transaction_pool_size;
     int random = 0;
-    srand(time(0));
-    random = (rand() % (upper - lower + 1)) + lower;
+    transaction *transactions = malloc(SO_BLOCK_SIZE * sizeof(transaction));
+    int numbers[SO_BLOCK_SIZE];
 
-    if (ledger_has_transaction(master_ledger, pool.transactions[random])) {
-        get_random_transaction();
+    srand(time(NULL));
+
+    while (confirmed < SO_BLOCK_SIZE) {
+        random = (rand() % (upper - lower)) + lower;
+        if (!array_contains(numbers, random)) {
+            numbers[confirmed] = random;
+            transactions[confirmed] = pool.transactions[random];
+            confirmed++;
+        }
     }
-    
-    transaction = pool.transactions[random];
-    return transaction;
+
+    return transactions;
 }
 /* END NODE FUNCTIONS */
 
@@ -445,50 +551,47 @@ transaction get_random_transaction() {
 /* USER FUNCTIONS */
 transaction new_transaction(pid_t receiver, int amount, int reward) {
     transaction transaction;
+    struct timespec interval;
     int toNode;
     int toUser;
     int random;
     int lower = 2;
     int upper = balance;
+    interval.tv_sec = 1;
+    interval.tv_nsec = 0;
     srand(time(NULL));
     random = (rand() % (upper - lower + 1)) + lower;
     toNode = (random * 20) / 100;
     toUser = random - toNode;
-    printf("Random=%d,  ToUser=%d, ToNode=%d\n", random, toUser, toNode);
-    
+
     transaction.timestamp = time(NULL);
     transaction.sender = getpid();
     transaction.receiver = receiver;
     transaction.amount = toUser;
     transaction.reward = toNode;
     transaction.status = PROCESSING;
-    /* nanosleep(&request, &remaining); */
-    
+    nanosleep(&interval, NULL);
+
     return transaction;
 }
 
-/* TEST */
 int calculate_balance() {
     int i;
     int j;
-    int start_position_ledger = last_block_confirmed * SO_BLOCK_SIZE;    
 
-    for (i = last_block_confirmed; i < ledger_size; i++) {
-        for (j = 0; j < block_size; j++) {
+    for (i = next_block_to_check; i < ledger_size; i++) {
+        for (j = 0; j < SO_BLOCK_SIZE; j++) {
             if ((*master_ledger).blocks[i].transactions[j].sender == getpid()) {
-                balance = balance - (*master_ledger).blocks[i].transactions[j].amount;
-                printf("Sender with amount = %d\n", (*master_ledger).blocks[i].transactions[j].amount);
+                balance -= ((*master_ledger).blocks[i].transactions[j].amount +
+                            (*master_ledger).blocks[i].transactions[j].reward);
             }
 
             if ((*master_ledger).blocks[i].transactions[j].receiver == getpid()) {
-                balance = balance + (*master_ledger).blocks[i].transactions[j].amount;
-                printf("Receiver with amount = %d\n", (*master_ledger).blocks[i].transactions[j].amount);
+                balance += (*master_ledger).blocks[i].transactions[j].amount;
             }
         }
-        last_block_confirmed++;
     }
-
-    printf("Balance=%d\n", balance);
+    next_block_to_check = ledger_size;
 
     return balance;
 }
@@ -527,19 +630,19 @@ void print_transaction(transaction t) {
     printf("%15ld %15d %15d %15d %15d %24s\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward, status);
 }
 
-void print_block(block *block) {
+void print_block(block block) {
     int i;
-    printf("BLOCK ID: %d\n", block->id);
+    printf("BLOCK ID: %d\n", block.id);
     print_table_header();
-    for (i = 0; i < block_size; i++) {
-        print_transaction(block->transactions[i]);
+    for (i = 0; i < SO_BLOCK_SIZE; i++) {
+        print_transaction(block.transactions[i]);
     }
 }
 
 void print_ledger(ledger *ledger) {
     int i;
     for (i = 0; i < ledger_size; i++) {
-        print_block(&ledger->blocks[i]);
+        print_block(ledger->blocks[i]);
         printf("-----------------------------------------------------------------------------------------------------\n");
     }
     printf("-----------------------------------------------------------------------------------------------------\n");
@@ -589,4 +692,33 @@ void unblock(int semaphore) {
         printf("All resources initialized\n");
     }
 }
+
 /* END EXTRA FUNCTIONS */
+
+void reset_transaction_pool() {
+    memset(&pool, 0, sizeof(pool));
+    transaction_pool_size = 0;
+}
+
+void reset_ledger(ledger *ledger) {
+    memset(master_ledger->blocks, 0, sizeof(master_ledger->blocks));
+    ledger_size = 0;
+    next_block_to_check = 0;
+    block_id = 0;
+}
+
+int array_contains(int array[], int element) {
+    int contains = 0;
+    int i;
+    for (i = 0; i < SO_BLOCK_SIZE && !contains; i++) {
+        if (array[i] == element) {
+            contains = 1;
+        }
+    }
+
+    return contains;
+}
+
+int equal_transaction(transaction t1, transaction t2) {
+    return t1.timestamp == t2.timestamp && t1.sender == t2.sender && t1.receiver == t2.receiver;
+}
