@@ -79,9 +79,41 @@ typedef struct {
 } transaction_pool;
 
 /* UTIL FUNCTIONS */
+void synchronize_resources(int);
+
+void acquire_resource(int, int);
+
+void release_resource(int, int);
+
+void lock(int);
+
+void unlock(int);
+
+void unblock(int);
+
 void read_configuration(configuration *); /* MASTER */
 
 char *get_status(transaction); /* NODE-USER */
+
+int equal_transaction(transaction, transaction);
+
+int array_contains(int [], int);
+
+void print_configuration(configuration);
+
+void print_transaction(transaction);
+
+void print_block(block);
+
+void print_ledger(ledger *);
+
+void print_all_transactions(transaction *);
+
+void print_table_header();
+
+void print_live_ledger_info(ledger *);
+
+void print_final_report();
 /* END UTIL FUNCTIONS */
 
 
@@ -112,6 +144,10 @@ block new_block();
 transaction new_reward_transaction(pid_t, int);
 
 transaction *extract_transaction_block_from_pool();
+
+void reset_transaction_pool();
+
+void reset_ledger(ledger *);
 /* END NODE FUNCTIONS */
 
 
@@ -123,50 +159,16 @@ int calculate_balance();
 pid_t get_random_user();
 
 pid_t get_random_node();
+
+int remove_from_processing_list(int);
+
+int add_to_processing_list(transaction t);
+
+int add_to_completed_list(transaction t);
+
+void print_processing_list();
+
+void print_completed_list();
 /* END USER FUNCTIONS */
-
-
-/* PRINT FUNCTIONS */
-void print_configuration(configuration);
-
-void print_transaction(transaction);
-
-void print_block(block);
-
-void print_ledger(ledger *);
-
-void print_all_transactions(transaction *);
-
-void print_transaction_pool();
-
-void print_table_header();
-
-void print_live_ledger_info(ledger *);
-
-void print_final_report();
-/* END PRINT FUNCTIONS */
-
-/* SEMAPHORE FUNCTIONS */
-void synchronize_resources(int);
-
-void acquire_resource(int, int);
-
-void release_resource(int, int);
-
-void lock(int);
-
-void unlock(int);
-
-void unblock(int);
-
-/* END SEMAPHORE FUNCTIONS */
-
-void reset_transaction_pool();
-
-void reset_ledger(ledger *);
-
-int array_contains(int [], int);
-
-int equal_transaction(transaction, transaction);
 
 #endif

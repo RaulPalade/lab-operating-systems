@@ -157,9 +157,9 @@ void read_configuration(configuration *);
 
 char *get_status(transaction);
 
-int array_contains(int [], int);
-
 int equal_transaction(transaction, transaction);
+
+int array_contains(int [], int);
 
 void print_configuration(configuration);
 

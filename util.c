@@ -6,7 +6,7 @@ static int balance = 100;
 static int block_id = 0;
 static int next_block_to_check = 0;
 
-// Initial semaphore used to init all resources by the master process
+/* Initial semaphore used to init all resources by the master process */
 void synchronize_resources(int semaphore) {
     struct sembuf sops;
     sops.sem_num = 0;
@@ -18,7 +18,7 @@ void synchronize_resources(int semaphore) {
     }
 }
 
-// For writers and also for readers when readers == 1
+/* For writers and also for readers when readers == 1 */
 void acquire_resource(int semaphore, int id_block) {
     struct sembuf sops;
     sops.sem_num = id_block;
@@ -30,7 +30,7 @@ void acquire_resource(int semaphore, int id_block) {
     }
 }
 
-// For writers and also for readers when readers == 0
+/* For writers and also for readers when readers == 0 */
 void release_resource(int semaphore, int id_block) {
     struct sembuf sops;
     sops.sem_num = id_block;
@@ -42,7 +42,7 @@ void release_resource(int semaphore, int id_block) {
     }
 }
 
-// Mutex for readers
+/* Mutex for readers */
 void lock(int semaphore) {
     struct sembuf sops;
     sops.sem_num = 0;
@@ -55,7 +55,7 @@ void lock(int semaphore) {
     }
 }
 
-// Mutex for readers
+/* Mutex for readers */
 void unlock(int semaphore) {
     struct sembuf sops;
     sops.sem_num = 0;

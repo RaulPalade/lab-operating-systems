@@ -3,12 +3,17 @@
 
 ledger (*master_ledger);
 transaction_pool pool;
+transaction (*processing_transactions);
+transaction (*completed_transactions);
 
 static int ledger_size = 0;
 static int transaction_pool_size = 0;
 static int balance = 100;
 static int block_id = 0;
 static int next_block_to_check = 0;
+
+static int n_processing_transactions = 0;
+static int n_completed_transactions = 0;
 
 static void test_add_to_transaction_pool();
 
@@ -44,6 +49,7 @@ int main() {
 static void test_add_to_transaction_pool() {
     transaction t_to_add = new_transaction(111111, 100, 20);
     int result = add_to_transaction_pool(t_to_add);
+
     TEST_ASSERT_EQUAL(1, result);
     TEST_ASSERT_EQUAL(1, transaction_pool_size);
     TEST_ASSERT_EQUAL(t_to_add.timestamp, pool.transactions[0].timestamp);
@@ -52,14 +58,17 @@ static void test_add_to_transaction_pool() {
     TEST_ASSERT_EQUAL(t_to_add.amount, pool.transactions[0].amount);
     TEST_ASSERT_EQUAL(t_to_add.reward, pool.transactions[0].reward);
     TEST_ASSERT_EQUAL(t_to_add.status, pool.transactions[0].status);
+
     reset_transaction_pool();
 }
 
 static void test_remove_from_transaction_pool() {
     transaction t_to_remove = new_transaction(111111, 100, 20);
     int result;
+
     add_to_transaction_pool(t_to_remove);
     result = remove_from_transaction_pool(t_to_remove);
+
     TEST_ASSERT_EQUAL(1, result);
     TEST_ASSERT_EQUAL(0, pool.transactions[0].timestamp);
     TEST_ASSERT_EQUAL(0, pool.transactions[0].sender);
@@ -67,23 +76,27 @@ static void test_remove_from_transaction_pool() {
     TEST_ASSERT_EQUAL(0, pool.transactions[0].amount);
     TEST_ASSERT_EQUAL(0, pool.transactions[0].reward);
     TEST_ASSERT_EQUAL(0, pool.transactions[0].status);
+
     reset_transaction_pool();
 }
 
 static void test_add_to_block() {
     int i;
     block block;
+
     transaction t1 = new_transaction(111111, 100, 20);
     transaction t2 = new_transaction(111111, 100, 20);
     transaction t3 = new_transaction(111111, 100, 20);
     transaction t4 = new_transaction(111111, 100, 20);
     transaction t5 = new_transaction(111111, 100, 20);
+
     transaction transactions[SO_BLOCK_SIZE];
     transactions[0] = t1;
     transactions[1] = t2;
     transactions[2] = t3;
     transactions[3] = t4;
     transactions[4] = t5;
+
     block = new_block(transactions);
 
     TEST_ASSERT_EQUAL(1, block_id);
@@ -100,41 +113,50 @@ static void test_add_to_block() {
 static void test_add_to_ledger() {
     int result;
     block block;
+
     transaction t1 = new_transaction(111111, 100, 20);
     transaction t2 = new_transaction(111111, 100, 20);
     transaction t3 = new_transaction(111111, 100, 20);
     transaction t4 = new_transaction(111111, 100, 20);
     transaction t5 = new_transaction(111111, 100, 20);
+
     transaction transactions[SO_BLOCK_SIZE];
     transactions[0] = t1;
     transactions[1] = t2;
     transactions[2] = t3;
     transactions[3] = t4;
     transactions[4] = t5;
+
     block = new_block(transactions);
 
     master_ledger = malloc(SO_REGISTRY_SIZE * sizeof(ledger));
 
     result = add_to_ledger(master_ledger, block);
     TEST_ASSERT_EQUAL(1, ledger_size);
-    free(master_ledger);
+
+    reset_ledger(master_ledger);
 }
 
 static void test_ledger_has_transaction() {
     int result;
     block block;
+
     transaction t1 = new_transaction(111111, 100, 20);
     transaction t2 = new_transaction(111111, 100, 20);
     transaction t3 = new_transaction(111111, 100, 20);
     transaction t4 = new_transaction(111111, 100, 20);
     transaction t5 = new_transaction(111111, 100, 20);
+
     transaction transactions[SO_BLOCK_SIZE];
     transactions[0] = t1;
     transactions[1] = t2;
     transactions[2] = t3;
     transactions[3] = t4;
     transactions[4] = t5;
+
     block = new_block(transactions);
+
+    master_ledger = malloc(SO_REGISTRY_SIZE * sizeof(ledger));
 
     add_to_ledger(master_ledger, block);
     result = ledger_has_transaction(master_ledger, t1);
@@ -147,6 +169,7 @@ static void test_ledger_has_transaction() {
     TEST_ASSERT_EQUAL(1, result);
     result = ledger_has_transaction(master_ledger, t5);
     TEST_ASSERT_EQUAL(1, result);
+
     reset_ledger(master_ledger);
 }
 
@@ -156,6 +179,7 @@ static void test_extract_transaction_block_from_pool() {
     int found = 0;
     int equals = 0;
     int totalChecks = 0;
+
     transaction *transactions;
     transaction t1 = new_transaction(111111, 100, 20);
     transaction t2 = new_transaction(111111, 100, 20);
@@ -193,11 +217,13 @@ static void test_extract_transaction_block_from_pool() {
     }
 
     TEST_ASSERT_EQUAL(5, equals);
+    free(transactions);
 }
 
 static void test_calculate_balance() {
     int result;
     int tmp_balance;
+    int processing_balance;
 
     block block1;
     block block2;
@@ -221,9 +247,31 @@ static void test_calculate_balance() {
     transaction t14 = new_transaction(111111, 100, 20);
     transaction t15 = new_transaction(111111, 100, 20);
 
+    transaction t16 = new_transaction(111111, 100, 20);
+    transaction t17 = new_transaction(111111, 100, 20);
+    transaction t18 = new_transaction(111111, 100, 20);
+    transaction t19 = new_transaction(111111, 100, 20);
+    transaction t20 = new_transaction(111111, 100, 20);
+
     transaction transactions1[SO_BLOCK_SIZE];
     transaction transactions2[SO_BLOCK_SIZE];
     transaction transactions3[SO_BLOCK_SIZE];
+
+    master_ledger = malloc(SO_REGISTRY_SIZE * sizeof(ledger));
+
+    processing_transactions = malloc(0 * sizeof(transaction));
+    completed_transactions = malloc(0 * sizeof(transaction));
+
+    add_to_processing_list(t1);
+    add_to_processing_list(t2);
+    add_to_processing_list(t3);
+    add_to_processing_list(t4);
+
+    add_to_processing_list(t16);
+    add_to_processing_list(t17);
+    add_to_processing_list(t18);
+    add_to_processing_list(t19);
+    add_to_processing_list(t20);
 
     transactions1[0] = t1;
     transactions1[1] = t2;
@@ -247,10 +295,13 @@ static void test_calculate_balance() {
     block2 = new_block(transactions2);
     block3 = new_block(transactions3);
 
+    processing_balance = t16.amount + t16.reward + t17.amount + t17.reward + t18.amount + t18.reward + t19.amount + t19.reward + t20.amount + t20.reward;
+
     add_to_ledger(master_ledger, block1);
     tmp_balance =
             balance - t1.amount - t1.reward - t2.amount - t2.reward - t3.amount - t3.reward - t4.amount - t4.reward -
             t5.amount - t5.reward;
+    tmp_balance -= processing_balance;
     result = calculate_balance();
     TEST_ASSERT_EQUAL(tmp_balance, result);
     TEST_ASSERT_EQUAL(1, next_block_to_check);
@@ -259,6 +310,7 @@ static void test_calculate_balance() {
     tmp_balance =
             balance - t6.amount - t6.reward - t7.amount - t7.reward - t8.amount - t8.reward - t9.amount - t9.reward -
             t10.amount - t10.reward;
+    tmp_balance -= processing_balance;
     result = calculate_balance();
     TEST_ASSERT_EQUAL(tmp_balance, result);
     TEST_ASSERT_EQUAL(2, next_block_to_check);
@@ -266,12 +318,14 @@ static void test_calculate_balance() {
     add_to_ledger(master_ledger, block3);
     tmp_balance = balance - t11.amount - t11.reward - t12.amount - t12.reward - t13.amount - t13.reward - t14.amount -
                   t14.reward - t15.amount - t15.reward;
+    tmp_balance -= processing_balance;
     result = calculate_balance();
     TEST_ASSERT_EQUAL(tmp_balance, result);
     TEST_ASSERT_EQUAL(3, next_block_to_check);
 
+    free(processing_transactions);
+    free(completed_transactions);
     reset_ledger(master_ledger);
-    free(master_ledger);
 }
 
 /* UTIL FUNCTIONS */
@@ -578,6 +632,7 @@ transaction new_transaction(pid_t receiver, int amount, int reward) {
 int calculate_balance() {
     int i;
     int j;
+    int y;
 
     for (i = next_block_to_check; i < ledger_size; i++) {
         for (j = 0; j < SO_BLOCK_SIZE; j++) {
@@ -589,9 +644,20 @@ int calculate_balance() {
             if ((*master_ledger).blocks[i].transactions[j].receiver == getpid()) {
                 balance += (*master_ledger).blocks[i].transactions[j].amount;
             }
+
+            for (y = 0; y < n_processing_transactions; y++) {
+                if (equal_transaction((*master_ledger).blocks[i].transactions[j], processing_transactions[y])) {
+                    add_to_completed_list(processing_transactions[y]);
+                    remove_from_processing_list(y);
+                }
+            }
         }
     }
     next_block_to_check = ledger_size;
+
+    for (y = 0; y < n_processing_transactions; y++) {
+        balance -= processing_transactions[y].amount + processing_transactions[y].reward;
+    }
 
     return balance;
 }
@@ -606,6 +672,51 @@ pid_t get_random_node() {
 
 int handler(int signal) {
     return 0;
+}
+
+int equal_transaction(transaction t1, transaction t2) {
+    return t1.timestamp == t2.timestamp && t1.sender == t2.sender && t1.receiver == t2.receiver;
+}
+
+int remove_from_processing_list(int position) {
+    int removed = 0;
+    int i;
+    for (i = position; i < n_processing_transactions; i++) {
+        processing_transactions[i] = processing_transactions[i + 1];    
+    }
+    n_processing_transactions--;
+    removed = 1;
+    
+    return removed;
+}
+
+int add_to_processing_list(transaction t) {
+    processing_transactions = realloc(processing_transactions, (n_processing_transactions + 1) * sizeof(transaction));
+    processing_transactions[n_processing_transactions] = t;
+    n_processing_transactions++;
+}
+
+int add_to_completed_list(transaction t) {
+    t.status = COMPLETED;
+    completed_transactions = realloc(completed_transactions, (n_completed_transactions + 1) * sizeof(transaction));
+    completed_transactions[n_completed_transactions] = t;
+    n_completed_transactions++;
+}
+
+void print_processing_list() {
+    int i;
+    print_table_header();
+    for (i = 0; i < n_processing_transactions; i++) {
+        print_transaction(processing_transactions[i]);
+    }
+}
+
+void print_completed_list() {
+    int i;
+    print_table_header();
+    for (i = 0; i < n_completed_transactions; i++) {
+        print_transaction(completed_transactions[i]);
+    }
 }
 /* END USER FUNCTIONS */
 
@@ -705,6 +816,7 @@ void reset_ledger(ledger *ledger) {
     ledger_size = 0;
     next_block_to_check = 0;
     block_id = 0;
+    free(master_ledger);
 }
 
 int array_contains(int array[], int element) {
@@ -717,8 +829,4 @@ int array_contains(int array[], int element) {
     }
 
     return contains;
-}
-
-int equal_transaction(transaction t1, transaction t2) {
-    return t1.timestamp == t2.timestamp && t1.sender == t2.sender && t1.receiver == t2.receiver;
 }
