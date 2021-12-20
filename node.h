@@ -27,3 +27,5 @@ void print_transaction_pool();
 void reset_transaction_pool();
 
 void reset_ledger(ledger *);
+
+void handler(int);

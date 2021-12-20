@@ -17,3 +17,5 @@ int add_to_completed_list(transaction t);
 void print_processing_list();
 
 void print_completed_list();
+
+void handler(int);

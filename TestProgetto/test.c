@@ -295,7 +295,9 @@ static void test_calculate_balance() {
     block2 = new_block(transactions2);
     block3 = new_block(transactions3);
 
-    processing_balance = t16.amount + t16.reward + t17.amount + t17.reward + t18.amount + t18.reward + t19.amount + t19.reward + t20.amount + t20.reward;
+    processing_balance =
+            t16.amount + t16.reward + t17.amount + t17.reward + t18.amount + t18.reward + t19.amount + t19.reward +
+            t20.amount + t20.reward;
 
     add_to_ledger(master_ledger, block1);
     tmp_balance =
@@ -670,8 +672,8 @@ pid_t get_random_node() {
     return 0;
 }
 
-int handler(int signal) {
-    return 0;
+void handler(int signal) {
+
 }
 
 int equal_transaction(transaction t1, transaction t2) {
@@ -682,12 +684,12 @@ int remove_from_processing_list(int position) {
     int removed = 0;
     int i;
     for (i = position; i < n_processing_transactions; i++) {
-        processing_transactions[i] = processing_transactions[i + 1];    
+        processing_transactions[i] = processing_transactions[i + 1];
     }
     n_processing_transactions--;
     processing_transactions = realloc(processing_transactions, (n_processing_transactions) * sizeof(transaction));
     removed = 1;
-    
+
     return removed;
 }
 

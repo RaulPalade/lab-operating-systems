@@ -11,9 +11,20 @@ static int balance = 100;
 static int block_id = 0;
 static int next_block_to_check = 0;
 
-
 static int n_processing_transactions = 0;
 static int n_completed_transactions = 0;
+
+int *readers;
+
+int id_shared_memory_ledger;
+int id_shared_memory_readers;
+
+int id_message_queue_master_user;
+int id_message_queue_node_user;
+
+int id_semaphore_init;
+int id_semaphore_writers;
+int id_semaphore_mutex;
 
 /**
  * USER PROCESS
@@ -24,6 +35,72 @@ static int n_completed_transactions = 0;
  * 5) Send transaction
  */
 int main() {
+    key_t key;
+    struct sigaction sa;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handler;
+
+    sigaction(SIGINT, &sa, 0);
+    sigaction(SIGALRM, &sa, 0);
+    sigaction(SIGQUIT, &sa, 0);
+    sigaction(SIGUSR1, &sa, 0);
+    sigaction(SIGUSR2, &sa, 0);
+    sigaction(SIGTSTP, &sa, 0);
+
+    /* SHARED MEMORY CONNECTION */
+    if ((key = ftok("./makefile", 'a')) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_ledger = shmget(key, 0, 0666)) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((key = ftok("./makefile", 'b')) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_readers = shmget(key, 0, 0666)) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (readers = shmat(id_shared_memory_readers, NULL, 0)) < (void *) 0) {
+        raise(SIGQUIT);
+    }
+
+    /* MESSAGE QUEUE CONNECTION */
+    if ((key = ftok("./makefile", 'd')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_message_queue_master_user = msgget(key, 0666);
+
+
+    if ((key = ftok("./makefile", 'e')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_message_queue_node_user = msgget(key, 0666);
+
+    /* SEMAPHORE CONNECTION */
+    if ((key = ftok("./makefile", 'f')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_semaphore_init = semget(key, 0, 0666);
+
+    if ((key = ftok("./makefile", 'g')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_semaphore_writers = semget(key, 0, 0666);
+
+    if ((key = ftok("./makefile", 'h')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_semaphore_mutex = semget(key, 0, 0666);
+
     return 0;
 }
 
@@ -94,10 +171,6 @@ pid_t get_random_node() {
     return 0;
 }
 
-int handler(int signal) {
-    return 0;
-}
-
 int remove_from_processing_list(int position) {
     int removed = 0;
     int i;
@@ -105,6 +178,7 @@ int remove_from_processing_list(int position) {
         processing_transactions[i] = processing_transactions[i + 1];
     }
     n_processing_transactions--;
+    processing_transactions = realloc(processing_transactions, (n_processing_transactions) * sizeof(transaction));
     removed = 1;
 
     return removed;
@@ -137,4 +211,8 @@ void print_completed_list() {
     for (i = 0; i < n_completed_transactions; i++) {
         print_transaction(completed_transactions[i]);
     }
+}
+
+void handler(int signal) {
+
 }

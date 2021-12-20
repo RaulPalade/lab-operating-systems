@@ -10,6 +10,18 @@ static int balance = 100;
 static int block_id = 0;
 static int next_block_to_check = 0;
 
+int *readers;
+
+int id_shared_memory_ledger;
+int id_shared_memory_readers;
+
+int id_message_queue_master_node;
+int id_message_queue_node_user;
+
+int id_semaphore_init;
+int id_semaphore_writers;
+int id_semaphore_mutex;
+
 /**
  * NODE PROCESS
  * 1) Receive transaction from User                     
@@ -21,6 +33,71 @@ static int next_block_to_check = 0;
  */
 
 int main() {
+    key_t key;
+    struct sigaction sa;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handler;
+
+    sigaction(SIGINT, &sa, 0);
+    sigaction(SIGALRM, &sa, 0);
+    sigaction(SIGQUIT, &sa, 0);
+    sigaction(SIGUSR1, &sa, 0);
+    sigaction(SIGUSR2, &sa, 0);
+    sigaction(SIGTSTP, &sa, 0);
+
+    /* SHARED MEMORY CONNECTION */
+    if ((key = ftok("./makefile", 'a')) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_ledger = shmget(key, 0, 0666)) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((key = ftok("./makefile", 'b')) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_readers = shmget(key, 0, 0666)) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (readers = shmat(id_shared_memory_readers, NULL, 0)) < (void *) 0) {
+        raise(SIGQUIT);
+    }
+
+    /* MESSAGE QUEUE CONNECTION */
+    if ((key = ftok("./makefile", 'c')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_message_queue_master_node = msgget(key, 0666);
+
+    if ((key = ftok("./makefile", 'e')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_message_queue_node_user = msgget(key, 0666);
+
+    /* SEMAPHORE CONNECTION */
+    if ((key = ftok("./makefile", 'f')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_semaphore_init = semget(key, 0, 0666);
+
+    if ((key = ftok("./makefile", 'g')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_semaphore_writers = semget(key, 0, 0666);
+
+    if ((key = ftok("./makefile", 'h')) < 0) {
+        raise(SIGQUIT);
+    }
+    id_semaphore_mutex = semget(key, 0, 0666);
+
     return 0;
 }
 
@@ -162,4 +239,8 @@ void reset_ledger(ledger *ledger) {
     ledger_size = 0;
     next_block_to_check = 0;
     block_id = 0;
+}
+
+void handler(int signal) {
+
 }

@@ -19,7 +19,7 @@
 
 #define SO_BLOCK_SIZE 5
 #define SO_REGISTRY_SIZE 5
-#define SO_TP_SIZE 20
+#define SO_TP_SIZE 20 /* to read at runtime */
 #define SENDER_TRANSACTION_REWARD -1
 
 #define ANSI_COLOR_RED     "\x1b[31m"

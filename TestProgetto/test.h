@@ -122,7 +122,7 @@ void execute_node();
 
 void execute_user();
 
-int handler(int);
+void handler(int);
 /* END MASTER FUNCTIONS */
 
 

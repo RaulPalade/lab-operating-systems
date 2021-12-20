@@ -9,4 +9,6 @@ void execute_user();
 
 void handler(int);
 
+int new_msg_queue_id(char);
+
 #endif
