@@ -685,6 +685,7 @@ int remove_from_processing_list(int position) {
         processing_transactions[i] = processing_transactions[i + 1];    
     }
     n_processing_transactions--;
+    processing_transactions = realloc(processing_transactions, (n_processing_transactions) * sizeof(transaction));
     removed = 1;
     
     return removed;
