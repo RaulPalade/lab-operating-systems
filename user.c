@@ -6,6 +6,8 @@ ledger (*master_ledger);
 transaction (*processing_transactions);
 transaction (*completed_transactions);
 
+user_information (*user_info);
+
 static int ledger_size = 0;
 static int transaction_pool_size = 0;
 static int balance = 100;
@@ -20,6 +22,8 @@ int *readers;
 int id_shared_memory_ledger;
 int id_shared_memory_configuration;
 int id_shared_memory_readers;
+
+int id_shared_memory_users;
 
 int id_message_queue_master_user;
 int id_message_queue_node_user;
@@ -88,6 +92,18 @@ int main() {
     }
 
     if ((void *) (readers = shmat(id_shared_memory_readers, NULL, 0)) < (void *) 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((key = ftok("./makefile", 'z')) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_users = shmget(key, 0, 0666)) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (user_info = shmat(id_shared_memory_users, NULL, 0)) < (void *) 0) {
         raise(SIGQUIT);
     }
 
@@ -242,4 +258,8 @@ void print_completed_list() {
 
 void handler(int signal) {
 
+}
+
+void update_info(user_information *user) {
+    
 }

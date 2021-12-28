@@ -61,8 +61,6 @@ int main() {
     sigaction(SIGUSR2, &sa, 0);
     sigaction(SIGTSTP, &sa, 0);
 
-    read_configuration(&config);
-
     /* SHARED MEMORY CREATION */
     if ((key = ftok("./makefile", 'a')) < 0) {
         raise(SIGQUIT);
@@ -87,6 +85,7 @@ int main() {
     if ((void *) (config = shmat(id_shared_memory_configuration, NULL, 0)) < (void *) 0) {
         raise(SIGQUIT);
     }
+    read_configuration(config);
 
     if ((key = ftok("./makefile", 'b')) < 0) {
         raise(SIGQUIT);

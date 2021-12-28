@@ -19,3 +19,5 @@ void print_processing_list();
 void print_completed_list();
 
 void handler(int);
+
+void update_info(user_information *);

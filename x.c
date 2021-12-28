@@ -12,6 +12,7 @@ int id_shared_memory_users;
 int main() {
     int i;
     key_t key;
+    char* args[] = {"name_command", "VAR1", NULL};
 
     if ((key = ftok("./makefile", 'x')) < 0) {
         raise(SIGQUIT);
@@ -58,8 +59,7 @@ int main() {
 
     printf("Launching Node processes\n");
     for (i = 0; i < (*config).SO_NODES_NUM; i++) {
-        switch (fork())
-        {
+        switch (fork()) {
         case -1:
             EXIT_ON_ERROR
         
@@ -67,31 +67,40 @@ int main() {
             node_info[i].pid = getpid();
             node_info[i].balance = 0;
             node_info[i].transactions_left = 0;
-            /* execute_node(i); */
+            execve("y", args, NULL);
         }
     }
 
+    printf("\n");
     printf("Launching User processes\n");
     for (i = 0; i < (*config).SO_USERS_NUM; i++) {
-        switch (fork())
-        {
+        switch (fork()) {
         case -1:
             EXIT_ON_ERROR
         
         case 0:
             user_info[i].pid = getpid();
             user_info[i].balance = 0;
-            /* execute_user(i); */
+            execve("y", args, NULL);
         }
+    }
+
+        while (wait(NULL) > 0) {
+
     }
 
     for (i = 0; i < config->SO_NODES_NUM; i++) {
         printf("Node PID=%d    Balance=%d      TransactionsLeft=%d\n", node_info[i].pid, node_info[i].balance, node_info[i].transactions_left);
     }
 
+    printf("\n");
     for (i = 0; i < config->SO_USERS_NUM; i++) {
         printf("User PID=%d    Balance=%d\n", user_info[i].pid, user_info[i].balance);
     }
+
+    shmdt(config);
+    shmdt(node_info);
+    shmdt(user_info);
 
     return 0;
 }

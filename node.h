@@ -3,7 +3,7 @@
 #define SENDER_TRANSACTION_REWARD -1
 
 typedef struct {
-    transaction transactions[SO_TP_SIZE];
+    transaction *transactions;
 } transaction_pool;
 
 int add_to_transaction_pool(transaction);
@@ -29,3 +29,5 @@ void reset_transaction_pool();
 void reset_ledger(ledger *);
 
 void handler(int);
+
+void update_info(node_information *);

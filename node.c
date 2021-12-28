@@ -3,7 +3,9 @@
 
 configuration (*config);
 ledger (*master_ledger);
-transaction_pool pool;
+transaction_pool pool; /* Needs to be modified with malloc */
+
+node_information (*node_info);
 
 static int ledger_size = 0;
 static int transaction_pool_size = 0;
@@ -17,6 +19,8 @@ int id_shared_memory_ledger;
 int id_shared_memory_configuration;
 int id_shared_memory_readers;
 int id_shared_memory_block_id;
+
+int id_shared_memory_nodes;
 
 int id_message_queue_master_node;
 int id_message_queue_node_user;
@@ -104,6 +108,18 @@ int main() {
     }
 
     if ((void *) (block_id = shmat(id_shared_memory_block_id, NULL, 0)) < (void *) 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((key = ftok("./makefile", 'w')) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_nodes = shmget(key, 0, 0666)) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (node_info = shmat(id_shared_memory_nodes, NULL, 0)) < (void *) 0) {
         raise(SIGQUIT);
     }
 
@@ -328,5 +344,9 @@ void reset_ledger(ledger *ledger) {
 }
 
 void handler(int signal) {
+
+}
+
+void update_info(node_information *node) {
 
 }

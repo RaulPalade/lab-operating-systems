@@ -19,7 +19,6 @@
 
 #define SO_BLOCK_SIZE 5
 #define SO_REGISTRY_SIZE 5
-#define SO_TP_SIZE 20
 #define SENDER_TRANSACTION_REWARD -1
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -45,6 +44,7 @@ typedef struct {
     int SO_MIN_TRANS_GEN_NSEC;
     int SO_MAX_TRANS_GEN_NSEC;
     int SO_RETRY;
+    int SO_TP_SIZE;
     int SO_MIN_TRANS_PROC_NSEC;
     int SO_MAX_TRANS_PROC_NSEC;
     int SO_BUDGET_INIT;
@@ -70,7 +70,7 @@ typedef struct {
 } ledger;
 
 typedef struct {
-    transaction transactions[SO_TP_SIZE];
+    transaction *transactions;
 } transaction_pool;
 
 /* UTIL FUNCTIONS */
