@@ -3,9 +3,9 @@
 
 #include "util.h"
 
-void execute_node();
+void execute_node(int);
 
-void execute_user();
+void execute_user(int);
 
 void handler(int);
 

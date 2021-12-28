@@ -16,10 +16,10 @@
 #include <sys/sem.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 
 #define SO_BLOCK_SIZE 5
 #define SO_REGISTRY_SIZE 5
-#define SO_TP_SIZE 20 /* to read at runtime */
 #define SENDER_TRANSACTION_REWARD -1
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -37,11 +37,6 @@
     }
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
-
-enum transaction_status {
-    UNKNOWN, PROCESSING, COMPLETED, ABORTED
-};
-
 typedef struct {
     int SO_USERS_NUM;
     int SO_NODES_NUM;
@@ -49,6 +44,7 @@ typedef struct {
     int SO_MIN_TRANS_GEN_NSEC;
     int SO_MAX_TRANS_GEN_NSEC;
     int SO_RETRY;
+    int SO_TP_SIZE;
     int SO_MIN_TRANS_PROC_NSEC;
     int SO_MAX_TRANS_PROC_NSEC;
     int SO_BUDGET_INIT;
@@ -62,7 +58,6 @@ typedef struct {
     pid_t receiver;
     int amount;
     int reward;
-    enum transaction_status status;
 } transaction;
 
 typedef struct {
@@ -81,16 +76,32 @@ union semun {
     struct seminfo *__buf;
 };
 
-/**
- * Synchronyze resources before the simulations starts.
- * Used by the master process in order to:
- * - Create Node processes
- * - Create User processes
- * - Initialize the ledger as a shared memory
- * - Assign a default budget for each user
- * - Execute the first transaction for each user
- */
-void synchronize_resources(int);
+/* MESSAGE QUEUE STRUCTURES */
+typedef struct {
+    long mtype;
+    transaction t;
+} user_node_message;
+
+typedef struct {
+    long mtype;
+    int args[2];
+} node_master_message;
+
+typedef struct {
+    long mtype;
+    int balance;
+} user_master_message;
+
+typedef struct {
+    pid_t pid;
+    int balance;
+    int transactions_left;
+} node_information;
+
+typedef struct {
+    pid_t pid;
+    int balance;
+} user_information;
 
 /**
  * Function used by processes to access a
@@ -148,14 +159,25 @@ void lock(int);
  */
 void unlock(int);
 
-void unblock(int);
+/**
+ * Function used by master process to release
+ * the init semaphore to allow node and user
+ * processes to begin execution
+ */  
+void unlock_init_semaphore(int);
+
+/**
+ * Synchronyze resources before the simulations starts.
+ * Node and user processes wait for 0 to begin the
+ * execution after the master process ended resourse init
+ */
+void synchronize_resources(int);
+
 
 /**
  * Read the initial configuration from file
  */
 void read_configuration(configuration *);
-
-char *get_status(transaction);
 
 int equal_transaction(transaction, transaction);
 

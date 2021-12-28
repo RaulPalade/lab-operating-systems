@@ -6,18 +6,6 @@ static int balance = 100;
 static int block_id = 0;
 static int next_block_to_check = 0;
 
-/* Initial semaphore used to init all resources by the master process */
-void synchronize_resources(int semaphore) {
-    struct sembuf sops;
-    sops.sem_num = 0;
-    sops.sem_op = 0;
-    sops.sem_flg = 0;
-    if (semop(semaphore, &sops, 1) < 0) {
-        kill(getppid(), SIGUSR1);
-        raise(SIGINT);
-    }
-}
-
 /* For writers and also for readers when readers == 1 */
 void acquire_resource(int semaphore, int id_block) {
     struct sembuf sops;
@@ -68,7 +56,7 @@ void unlock(int semaphore) {
     }
 }
 
-void unblock(int semaphore) {
+void unlock_init_semaphore(int semaphore) {
     struct sembuf buf;
     buf.sem_num = 0;
     buf.sem_op = -1;
@@ -77,6 +65,18 @@ void unblock(int semaphore) {
         EXIT_ON_ERROR
     } else {
         printf("All resources initialized\n");
+    }
+}
+
+/* Initial semaphore used to init all resources by the master process */
+void synchronize_resources(int semaphore) {
+    struct sembuf sops;
+    sops.sem_num = 0;
+    sops.sem_op = 0;
+    sops.sem_flg = 0;
+    if (semop(semaphore, &sops, 1) < 0) {
+        kill(getppid(), SIGUSR1);
+        raise(SIGINT);
     }
 }
 
@@ -115,6 +115,8 @@ void read_configuration(configuration *configuration) {
                     configuration->SO_MAX_TRANS_GEN_NSEC = value;
                 } else if (strncmp(s, "SO_RETRY", 8) == 0) {
                     configuration->SO_RETRY = value;
+                } else if (strncmp(s, "SO_TP_SIZE", 10) == 0) {
+                    configuration->SO_TP_SIZE = value;
                 } else if (strncmp(s, "SO_MIN_TRANS_PROC_NSEC", 22) == 0) {
                     configuration->SO_MIN_TRANS_PROC_NSEC = value;
                 } else if (strncmp(s, "SO_MAX_TRANS_PROC_NSEC", 22) == 0) {
@@ -135,24 +137,6 @@ void read_configuration(configuration *configuration) {
     }
 
     fclose(file);
-}
-
-char *get_status(transaction t) {
-    char *transaction_status;
-    if (t.status == UNKNOWN) {
-        transaction_status = ANSI_COLOR_MAGENTA "UNKNOWN" ANSI_COLOR_RESET;
-    }
-    if (t.status == PROCESSING) {
-        transaction_status = ANSI_COLOR_YELLOW "PROCESSING" ANSI_COLOR_RESET;
-    }
-    if (t.status == COMPLETED) {
-        transaction_status = ANSI_COLOR_GREEN "COMPLETED" ANSI_COLOR_RESET;
-    }
-    if (t.status == ABORTED) {
-        transaction_status = ANSI_COLOR_RED "ABORTED" ANSI_COLOR_RESET;
-    }
-
-    return transaction_status;
 }
 
 int array_contains(int array[], int element) {
@@ -186,8 +170,7 @@ void print_configuration(configuration configuration) {
 }
 
 void print_transaction(transaction t) {
-    char *status = get_status(t);
-    printf("%15ld %15d %15d %15d %15d %24s\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward, status);
+    printf("%15ld %15d %15d %15d %15d\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward);
 }
 
 void print_block(block block) {
@@ -219,7 +202,7 @@ void print_all_transactions(transaction *transactions) {
 
 void print_table_header() {
     printf("-----------------------------------------------------------------------------------------------------\n");
-    printf("%15s %15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD", "STATUS");
+    printf("%15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD");
     printf("-----------------------------------------------------------------------------------------------------\n");
 }
 

@@ -57,7 +57,6 @@ static void test_add_to_transaction_pool() {
     TEST_ASSERT_EQUAL(t_to_add.receiver, pool.transactions[0].receiver);
     TEST_ASSERT_EQUAL(t_to_add.amount, pool.transactions[0].amount);
     TEST_ASSERT_EQUAL(t_to_add.reward, pool.transactions[0].reward);
-    TEST_ASSERT_EQUAL(t_to_add.status, pool.transactions[0].status);
 
     reset_transaction_pool();
 }
@@ -75,7 +74,6 @@ static void test_remove_from_transaction_pool() {
     TEST_ASSERT_EQUAL(0, pool.transactions[0].receiver);
     TEST_ASSERT_EQUAL(0, pool.transactions[0].amount);
     TEST_ASSERT_EQUAL(0, pool.transactions[0].reward);
-    TEST_ASSERT_EQUAL(0, pool.transactions[0].status);
 
     reset_transaction_pool();
 }
@@ -106,7 +104,6 @@ static void test_add_to_block() {
         TEST_ASSERT_EQUAL(transactions[i].receiver, block.transactions[i].receiver);
         TEST_ASSERT_EQUAL(transactions[i].amount, block.transactions[i].amount);
         TEST_ASSERT_EQUAL(transactions[i].reward, block.transactions[i].reward);
-        TEST_ASSERT_EQUAL(transactions[i].status, block.transactions[i].status);
     }
 }
 
@@ -449,24 +446,6 @@ void unlock(int semaphore) {
         raise(SIGINT);
     }
 }
-
-char *get_status(transaction t) {
-    char *transaction_status;
-    if (t.status == UNKNOWN) {
-        transaction_status = ANSI_COLOR_MAGENTA "UNKNOWN" ANSI_COLOR_RESET;
-    }
-    if (t.status == PROCESSING) {
-        transaction_status = ANSI_COLOR_YELLOW "PROCESSING" ANSI_COLOR_RESET;
-    }
-    if (t.status == COMPLETED) {
-        transaction_status = ANSI_COLOR_GREEN "COMPLETED" ANSI_COLOR_RESET;
-    }
-    if (t.status == ABORTED) {
-        transaction_status = ANSI_COLOR_RED "ABORTED" ANSI_COLOR_RESET;
-    }
-
-    return transaction_status;
-}
 /* END UTIL FUNCTIONS */
 
 
@@ -520,7 +499,6 @@ int execute_transaction(transaction *t) {
     interval.tv_nsec = 0;
     printf("Executing transaction...\n");
     nanosleep(&interval, NULL);
-    (*t).status = COMPLETED;
 
     return executed;
 }
@@ -625,7 +603,6 @@ transaction new_transaction(pid_t receiver, int amount, int reward) {
     transaction.receiver = receiver;
     transaction.amount = toUser;
     transaction.reward = toNode;
-    transaction.status = PROCESSING;
     nanosleep(&interval, NULL);
 
     return transaction;
@@ -700,7 +677,6 @@ int add_to_processing_list(transaction t) {
 }
 
 int add_to_completed_list(transaction t) {
-    t.status = COMPLETED;
     completed_transactions = realloc(completed_transactions, (n_completed_transactions + 1) * sizeof(transaction));
     completed_transactions[n_completed_transactions] = t;
     n_completed_transactions++;
@@ -740,8 +716,7 @@ void print_configuration(configuration configuration) {
 }
 
 void print_transaction(transaction t) {
-    char *status = get_status(t);
-    printf("%15ld %15d %15d %15d %15d %24s\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward, status);
+    printf("%15ld %15d %15d %15d %15d %24s\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward);
 }
 
 void print_block(block block) {
@@ -781,7 +756,7 @@ void print_transaction_pool() {
 
 void print_table_header() {
     printf("-----------------------------------------------------------------------------------------------------\n");
-    printf("%15s %15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD", "STATUS");
+    printf("%15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD");
     printf("-----------------------------------------------------------------------------------------------------\n");
 }
 

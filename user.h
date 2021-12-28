@@ -1,6 +1,6 @@
 #include "util.h"
 
-transaction new_transaction(pid_t, int, int);
+transaction new_transaction();
 
 int calculate_balance();
 

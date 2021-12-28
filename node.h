@@ -18,9 +18,9 @@ int add_to_ledger(ledger *, block block);
 
 block new_block();
 
-transaction new_reward_transaction(pid_t, int);
+transaction new_reward_transaction(int);
 
-transaction *extract_transaction_block_from_pool();
+transaction *extract_transactions_block_from_pool();
 
 void print_transaction_pool();
 

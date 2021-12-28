@@ -38,10 +38,6 @@
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
-enum transaction_status {
-    UNKNOWN, PROCESSING, COMPLETED, ABORTED
-};
-
 typedef struct {
     int SO_USERS_NUM;
     int SO_NODES_NUM;
@@ -62,7 +58,6 @@ typedef struct {
     pid_t receiver;
     int amount;
     int reward;
-    enum transaction_status status;
 } transaction;
 
 typedef struct {
@@ -92,8 +87,6 @@ void unlock(int);
 void unblock(int);
 
 void read_configuration(configuration *); /* MASTER */
-
-char *get_status(transaction); /* NODE-USER */
 
 int equal_transaction(transaction, transaction);
 

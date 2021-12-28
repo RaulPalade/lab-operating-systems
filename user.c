@@ -1,6 +1,7 @@
 #include "util.h"
 #include "user.h"
 
+configuration (*config);
 ledger (*master_ledger);
 transaction (*processing_transactions);
 transaction (*completed_transactions);
@@ -17,6 +18,7 @@ static int n_completed_transactions = 0;
 int *readers;
 
 int id_shared_memory_ledger;
+int id_shared_memory_configuration;
 int id_shared_memory_readers;
 
 int id_message_queue_master_user;
@@ -25,6 +27,9 @@ int id_message_queue_node_user;
 int id_semaphore_init;
 int id_semaphore_writers;
 int id_semaphore_mutex;
+
+user_node_message user_node_msg;
+user_master_message user_master_msg;
 
 /**
  * USER PROCESS
@@ -37,6 +42,7 @@ int id_semaphore_mutex;
 int main() {
     key_t key;
     struct sigaction sa;
+    transaction transaction;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
@@ -58,6 +64,18 @@ int main() {
     }
 
     if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((key = ftok("./makefile", 'x')) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_configuration = shmget(key, 0, 0666)) < 0) {
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (config = shmat(id_shared_memory_configuration, NULL, 0)) < (void *) 0) {
         raise(SIGQUIT);
     }
 
@@ -101,10 +119,18 @@ int main() {
     }
     id_semaphore_mutex = semget(key, 0, 0666);
 
-    return 0;
+    synchronize_resources(id_semaphore_init);
+    while (1) {
+        if (balance >= 2) {
+            user_node_msg.t = new_transaction();
+        }
+    }
+
+    user_master_msg.balance = balance;
+    msgsnd(id_message_queue_master_user, &user_master_msg, sizeof(int) - sizeof(long), IPC_NOWAIT);
 }
 
-transaction new_transaction(pid_t receiver, int amount, int reward) {
+transaction new_transaction() {
     transaction transaction;
     struct timespec interval;
     int toNode;
@@ -114,6 +140,7 @@ transaction new_transaction(pid_t receiver, int amount, int reward) {
     int upper = balance;
     interval.tv_sec = 1;
     interval.tv_nsec = 0;
+
     srand(time(NULL));
     random = (rand() % (upper - lower + 1)) + lower;
     toNode = (random * 20) / 100;
@@ -121,10 +148,9 @@ transaction new_transaction(pid_t receiver, int amount, int reward) {
 
     transaction.timestamp = time(NULL);
     transaction.sender = getpid();
-    transaction.receiver = receiver;
+    transaction.receiver = 999999; /* EXtract random user */
     transaction.amount = toUser;
     transaction.reward = toNode;
-    transaction.status = PROCESSING;
     nanosleep(&interval, NULL);
 
     return transaction;
@@ -135,6 +161,8 @@ int calculate_balance() {
     int j;
     int y;
 
+    /* read operation */
+    /* ledger_size to be updated with last_block_written */
     for (i = next_block_to_check; i < ledger_size; i++) {
         for (j = 0; j < SO_BLOCK_SIZE; j++) {
             if ((*master_ledger).blocks[i].transactions[j].sender == getpid()) {
@@ -191,7 +219,6 @@ int add_to_processing_list(transaction t) {
 }
 
 int add_to_completed_list(transaction t) {
-    t.status = COMPLETED;
     completed_transactions = realloc(completed_transactions, (n_completed_transactions + 1) * sizeof(transaction));
     completed_transactions[n_completed_transactions] = t;
     n_completed_transactions++;
