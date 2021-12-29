@@ -3,7 +3,7 @@
 
 configuration (*config);
 ledger (*master_ledger);
-transaction_pool pool; /* Needs to be modified with malloc */
+transaction_pool pool;
 
 node_information (*node_info);
 
@@ -154,11 +154,12 @@ int main(int argc, char *argv[]) {
     synchronize_resources(id_semaphore_init);
 
     while (1) {
-        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction), 0, 0) < 0) {
+        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction), getpid(), IPC_NOWAIT) < 0) {
             success = add_to_transaction_pool(user_node_msg.t);
             if (!success) {
                 /* INFORM USER TRANSACTION FAILED */
-                msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), IPC_NOWAIT);
+                user_node_msg.mtype = getpid();
+                msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), 0);
             }
 
             if (transaction_pool_size >= SO_BLOCK_SIZE) {
@@ -169,7 +170,7 @@ int main(int argc, char *argv[]) {
                 success = add_to_ledger(master_ledger, block);
                 release_resource(id_semaphore_writers, *last_block_id);
                 if (success) {
-                    for (i = 0; i < SO_BLOCK_SIZE; i++) {
+                    for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
                         remove_from_transaction_pool(transactions[i]);
                     }
                 }

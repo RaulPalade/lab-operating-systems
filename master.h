@@ -11,4 +11,12 @@ void handler(int);
 
 int new_msg_queue_id(char);
 
+void print_live_info();
+
+void print_node_info();
+
+void print_user_info();
+
+void print_final_report();
+
 #endif

@@ -10,16 +10,17 @@ user_information (*user_info);
 
 static int balance = 100;
 static int next_block_to_check = 0;
+static int dying = 0;
 
 static int n_processing_transactions = 0;
 static int n_completed_transactions = 0;
 
-int *last_block_id;     /* Used to read by user till this block */
+int *last_block_id;
 
 int id_shared_memory_ledger;
 int id_shared_memory_configuration;
 int id_shared_memory_users;
-int id_shared_memory_last_block_id;          /* Used to keep trace of block_id for next block and to read operations */
+int id_shared_memory_last_block_id;
 
 int id_message_queue_master_user;
 int id_message_queue_node_user;
@@ -43,7 +44,10 @@ int main(int argc, char *argv[]) {
     key_t key;
     struct sigaction sa;
     transaction transaction;
-    int index;
+    struct timespec interval;
+    int lower;
+    int upper;
+    long random;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
@@ -135,7 +139,8 @@ int main(int argc, char *argv[]) {
     synchronize_resources(id_semaphore_init);
     while (1) {
         /* RICEVERE MESSAGGIO DAL NODO SE LA TRANSAZIONE E FALLITA */
-        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0, 0) < 0) {
+        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0, IPC_NOWAIT) <
+            0) {
             add_to_processing_list(user_node_msg.t);
         }
 
@@ -144,8 +149,21 @@ int main(int argc, char *argv[]) {
         if (balance >= 2) {
             transaction = new_transaction();
             add_to_processing_list(transaction);
+            user_node_msg.mtype = get_random_node();
             user_node_msg.t = transaction;
-            msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0);
+            if ((msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0)) < 0) {
+                dying++;
+                if (dying == config->SO_RETRY) {
+                    update_info(atoi(argv[1]));
+                    kill(getppid(), SIGUSR1);
+                }
+            }
+
+            lower = config->SO_MIN_TRANS_GEN_NSEC;
+            upper = config->SO_MAX_TRANS_GEN_NSEC;
+            random = (rand() % (upper - lower + 1)) + lower;
+            interval.tv_sec = 0;
+            interval.tv_nsec = random;
         }
 
         /* AGGIORNARE USER INFO */
@@ -155,29 +173,25 @@ int main(int argc, char *argv[]) {
 
 transaction new_transaction() {
     transaction transaction;
-    struct timespec interval;
     int toNode;
     int toUser;
     int random;
     int lower = 2;
     int upper = balance;
-    struct timespec tp;
+    struct timespec interval;
     clockid_t clock_id;
-    interval.tv_sec = 1;
-    interval.tv_nsec = 0;
 
-    clock_gettime(clock_id, &tp);
-    srand(tp.tv_sec);
+    clock_gettime(clock_id, &interval);
+    srand(interval.tv_sec);
     random = (rand() % (upper - lower + 1)) + lower;
     toNode = (random * 20) / 100;
     toUser = random - toNode;
 
-    transaction.timestamp = tp.tv_sec;
+    transaction.timestamp = interval.tv_sec;
     transaction.sender = getpid();
     transaction.receiver = get_random_user();
     transaction.amount = toUser;
     transaction.reward = toNode;
-    nanosleep(&interval, NULL);
 
     return transaction;
 }

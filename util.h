@@ -195,8 +195,4 @@ void print_all_transactions(transaction *);
 
 void print_table_header();
 
-void print_live_ledger_info(ledger *);
-
-void print_final_report();
-
 #endif

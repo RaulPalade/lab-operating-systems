@@ -13,7 +13,6 @@ int id_shared_memory_ledger;            /* Ledger */
 int id_shared_memory_configuration;     /* Configuration */
 int id_shared_memory_readers;           /* Used to read, not needed because a piece of ledger is written just one time */
 int id_shared_memory_last_block_id;          /* Used to keep trace of block_id for next block and to read operations */
-
 int id_shared_memory_nodes;
 int id_shared_memory_users;
 
@@ -26,6 +25,10 @@ int id_semaphore_writers;
 int id_semaphore_mutex;
 
 volatile int executing = 1;
+int ledger_full = 0;
+
+static int active_nodes = 0;
+static int active_users = 0;
 
 /**
  * MASTER PROCESS
@@ -166,17 +169,12 @@ int main() {
         raise(SIGQUIT);
     }
 
-    if ((id_semaphore_writers = semget(key, (*config).SO_NODES_NUM, IPC_CREAT | 0666)) < 0) {
+    if ((id_semaphore_writers = semget(key, 1, IPC_CREAT | 0666)) < 0) {
         raise(SIGQUIT);
     }
 
-    sem_arg.buf = &writers_ds;
-    semval = malloc(sizeof(unsigned short int) * (*config).SO_NODES_NUM);
-    for (i = 0; i < (*config).SO_NODES_NUM; i++) {
-        semval[i] = 1;
-    }
-    sem_arg.array = semval;
-    if (semctl(id_semaphore_writers, 0, SETALL, sem_arg) < 0) {
+    sem_arg.val = 1;
+    if (semctl(id_semaphore_writers, 0, SETVAL, sem_arg)) {
         EXIT_ON_ERROR
     }
 
@@ -201,6 +199,7 @@ int main() {
                 EXIT_ON_ERROR
 
             case 0:
+                active_nodes++;
                 node_info[i].pid = getpid();
                 node_info[i].balance = 0;
                 node_info[i].transactions_left = 0;
@@ -215,6 +214,7 @@ int main() {
                 EXIT_ON_ERROR
 
             case 0:
+                active_users++;
                 user_info[i].pid = getpid();
                 user_info[i].balance = 0;
                 execute_user(i);
@@ -229,9 +229,10 @@ int main() {
     clock_gettime(clock_id, &tp);
     srand(tp.tv_sec);
     current_time = time(NULL);
-    while (executing) {
+    while (executing && active_users > 0 && !ledger_full) {
         if ((time(NULL) - current_time) >= 1) {
-            print_ledger(master_ledger);
+            print_node_info();
+            print_user_info();
             current_time = time(NULL);
         }
     }
@@ -243,14 +244,23 @@ int main() {
 
     print_final_report();
 
-
     shmdt(master_ledger);
     shmdt(readers);
+    shmdt(config);
+    shmdt(last_block_id);
+    shmdt(node_info);
+    shmdt(user_info);
     shmctl(id_shared_memory_ledger, IPC_RMID, NULL);
     shmctl(id_shared_memory_readers, IPC_RMID, NULL);
+    shmctl(id_shared_memory_configuration, IPC_RMID, NULL);
+    shmctl(id_shared_memory_last_block_id, IPC_RMID, NULL);
+    shmctl(id_shared_memory_nodes, IPC_RMID, NULL);
+    shmctl(id_shared_memory_users, IPC_RMID, NULL);
+
     msgctl(id_message_queue_master_node, IPC_RMID, NULL);
     msgctl(id_message_queue_master_user, IPC_RMID, NULL);
     msgctl(id_message_queue_node_user, IPC_RMID, NULL);
+
     semctl(id_semaphore_init, 0, IPC_RMID);
     semctl(id_semaphore_writers, 0, IPC_RMID);
     semctl(id_semaphore_mutex, 0, IPC_RMID);
@@ -259,15 +269,23 @@ int main() {
 }
 
 void execute_node(int arg) {
-
+    char *argv[3];
+    argv[0] = "node";
+    sprintf(argv[1], "%d", arg);
+    argv[2] = NULL;
+    execv("node", argv);
 }
 
 void execute_user(int arg) {
-
+    char *argv[3];
+    argv[0] = "user";
+    sprintf(argv[1], "%d", arg);
+    argv[2] = NULL;
+    execv("user", argv);
 }
 
 void handler(int signal) {
-
+    ledger_full = 1;
 }
 
 int new_msg_queue_id(char proj_id) {
@@ -283,4 +301,39 @@ int new_msg_queue_id(char proj_id) {
     }
 
     return id;
+}
+
+void print_live_info() {
+    int i;
+    printf("-----------------------------------------------------------------------------------------------------\n");
+    printf("%10s %10s\n", "ACTIVE NODES", "ACTIVE USERS");
+    printf("%10d %10d\n", active_nodes, active_users);
+    print_node_info();
+    print_user_info();
+}
+
+void print_node_info() {
+    int i;
+    for (i = 0; i < config->SO_NODES_NUM; i++) {
+        printf("Node PID=%d, Balance=%d, Transaction Left=%d\n", node_info[i].pid, node_info[i].balance,
+               node_info[i].transactions_left);
+    }
+}
+
+void print_user_info() {
+    int i;
+    for (i = 0; i < config->SO_USERS_NUM; i++) {
+        printf("Node PID=%d, Balance=%d\n", node_info[i].pid, node_info[i].balance);
+    }
+}
+
+void print_final_report() {
+    printf("Simulation ended with flags\n");
+    printf("Executing = %d\n", executing);
+    printf("Active users = %d\n", active_users);
+    printf("Ledger full = %d\n", ledger_full);
+    print_user_info();
+    print_node_info();
+    printf("User processes dead = %d\n", config->SO_USERS_NUM - active_users);
+    printf("Number of blocks in the ledger = %d\n", *last_block_id);
 }

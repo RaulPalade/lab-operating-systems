@@ -205,11 +205,3 @@ void print_table_header() {
     printf("%15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD");
     printf("-----------------------------------------------------------------------------------------------------\n");
 }
-
-void print_live_ledger_info(ledger *ledger) {
-
-}
-
-void print_final_report() {
-
-}

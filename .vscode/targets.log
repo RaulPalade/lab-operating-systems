@@ -8,7 +8,7 @@ make: *** No rule to make target 'all'.  Stop.
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Wed Dec 29 10:12:08 2021
+# Make data base, printed on Wed Dec 29 18:55:37 2021
 
 # Variables
 
@@ -25,7 +25,7 @@ SNAP_INSTANCE_KEY =
 # environment
 GJS_DEBUG_OUTPUT = stderr
 # environment
-VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-0913b0b5-e392-414e-a2ed-3d6476c8b737.sock
+VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-3e9c164b-8c34-4dc1-b417-f6579a2a33e5.sock
 # environment
 VSCODE_CWD = /home/raul
 # default
@@ -59,7 +59,7 @@ VSCODE_CODE_CACHE_PATH = /home/raul/.config/Code/CachedData/899d46d82c4c95423fb7
 # environment
 LANG = C
 # environment
-XAUTHORITY = /run/user/1000/.mutter-Xwaylandauth.H6B0E1
+XAUTHORITY = /run/user/1000/.mutter-Xwaylandauth.TMOZE1
 # default
 .LOADED := 
 # default
@@ -101,7 +101,7 @@ SNAP_REEXEC =
 # environment
 VSCODE_VERBOSE_LOGGING = true
 # environment
-VSCODE_PID = 2237
+VSCODE_PID = 4435
 # environment
 XDG_SESSION_TYPE = wayland
 # automatic
@@ -109,7 +109,7 @@ XDG_SESSION_TYPE = wayland
 # environment
 BAMF_DESKTOP_FILE_HINT = /var/lib/snapd/desktop/applications/code_code.desktop
 # environment
-SESSION_MANAGER = local/raul-VirtualBox:@/tmp/.ICE-unix/1243,unix/raul-VirtualBox:/tmp/.ICE-unix/1243
+SESSION_MANAGER = local/raul-VirtualBox:@/tmp/.ICE-unix/1254,unix/raul-VirtualBox:/tmp/.ICE-unix/1254
 # automatic
 *F = $(notdir $*)
 # environment
@@ -155,7 +155,7 @@ SNAP_USER_COMMON = /home/raul/snap/code/common
 # environment
 SNAP = /snap/code/85
 # environment
-INVOCATION_ID = 743fc6c7af234c5a945b1ae42a0505cc
+INVOCATION_ID = 09c9b938508445e89f69384653be0365
 # environment
 SNAP_REVISION = 85
 # environment
@@ -189,7 +189,7 @@ GIO_LAUNCHED_DESKTOP_FILE = /var/lib/snapd/desktop/applications/code_code.deskto
 # environment
 SNAP_ARCH = amd64
 # makefile
-.DEFAULT_GOAL := 
+.DEFAULT_GOAL := transaction_simulation
 # environment
 DISPLAY = :0
 # environment
@@ -205,17 +205,19 @@ SNAP_DATA = /var/snap/code/85
 # environment
 SNAP_CONTEXT = 4C6i8ju1U0oVDa71vVT4gdeiOCAKoIouy68QUZ8KHsW_1KLI30aC
 # environment
-MANAGERPID = 1126
+MANAGERPID = 1137
 # environment
-GIO_LAUNCHED_DESKTOP_FILE_PID = 2189
+GIO_LAUNCHED_DESKTOP_FILE_PID = 4385
 # environment
 _ = /snap/code/85/usr/share/code/code
 # environment
 XDG_RUNTIME_DIR = /run/user/1000
+# makefile (from 'makefile', line 8)
+CFLAGS := -std=c89 -pedantic
 # environment
 GDK_PIXBUF_MODULE_FILE = /home/raul/snap/code/common/.cache/gdk-pixbuf-loaders.cache
 # environment
-JOURNAL_STREAM = 8:22366
+JOURNAL_STREAM = 8:23801
 # environment
 XDG_SESSION_CLASS = user
 # environment
@@ -250,6 +252,8 @@ ELECTRON_NO_ATTACH_CONSOLE = 1
 SNAP_COMMON = /var/snap/code/common
 # default
 .FEATURES := target-specific order-only second-expansion else-if shortest-stem undefine oneshell nocomment grouped-target extra-prereqs archives jobserver output-sync check-symlink load
+# makefile (from 'makefile', line 7)
+CC = -gcc
 # environment
 SNAP_USER_DATA = /home/raul/snap/code/85
 # environment
@@ -259,7 +263,7 @@ GDMSESSION = ubuntu
 # environment
 SNAP_LIBRARY_PATH = /var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void
 # variable set hash-table stats:
-# Load=123/1024=12%, Rehash=0, Collisions=5/152=3%
+# Load=125/1024=12%, Rehash=0, Collisions=5/155=3%
 
 # Pattern-specific Variable Values
 
@@ -267,20 +271,70 @@ SNAP_LIBRARY_PATH = /var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd
 
 # Directories
 
-# . (device 2051, inode 920351): 25 files, no impossibilities.
+# . (device 2051, inode 920351): 22 files, no impossibilities.
 
-# 25 files, no impossibilities in 1 directories.
+# 22 files, no impossibilities in 1 directories.
 
 # Implicit Rules
 
 # No implicit rules.
 
 # Files
+ 
+
+# Not a target:
+node.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+source:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+util.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+master.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# Not a target:
+node.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+cleanall:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'makefile', line 20):
+		rm -f *.o
+
+# Not a target:
+master.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+transaction_simulation: master.o master.h node source cleanall node.h user.h util.h
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'makefile', line 11):
+						$(CC) $(CFLAGS) -o transaction_simulator master.c
 
 # Not a target:
 .DEFAULT:
 #  Implicit rule search has not been done.
- 
 #  Modification time never checked.
 #  File has not been updated.
 
@@ -292,26 +346,52 @@ all:
 #  File has not been updated.
 
 # Not a target:
+user.h:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+node: node.o node.h util.h
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'makefile', line 14):
+	$(CC) $(CFLAGS) -o node node.c util.c
+
+# Not a target:
 makefile:
 #  Implicit rule search has been done.
-#  Last modified 2021-12-20 10:59:33.990774614
+#  Last modified 2021-12-29 18:40:19.402758009
 #  File has been updated.
 #  Successfully updated.
 
+# Not a target:
+user.o:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+user: user.o user.h util.h
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from 'makefile', line 17):
+	$(CC) $(CFLAGS) -o user user.c util.c
+
 # files hash-table stats:
-# Load=4/1024=0%, Rehash=0, Collisions=0/14=0%
+# Load=16/1024=2%, Rehash=0, Collisions=0/42=0%
 # VPATH Search Paths
 
 # No 'vpath' search paths.
 
 # No general ('VPATH' variable) search path.
 
-# strcache buffers: 1 (0) / strings = 30 / storage = 225 B / avg = 7 B
-# current buf: size = 8162 B / used = 225 B / count = 30 / avg = 7 B
+# strcache buffers: 1 (0) / strings = 33 / storage = 280 B / avg = 8 B
+# current buf: size = 8162 B / used = 280 B / count = 33 / avg = 8 B
 
-# strcache performance: lookups = 34 / hit rate = 11%
+# strcache performance: lookups = 53 / hit rate = 37%
 # hash-table stats:
-# Load=30/8192=0%, Rehash=0, Collisions=0/34=0%
-# Finished Make data base on Wed Dec 29 10:12:08 2021
+# Load=33/8192=0%, Rehash=0, Collisions=0/53=0%
+# Finished Make data base on Wed Dec 29 18:55:37 2021
 
  
