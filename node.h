@@ -26,8 +26,8 @@ void print_transaction_pool();
 
 void reset_transaction_pool();
 
-void reset_ledger(ledger *);
+void reset_ledger();
 
 void handler(int);
 
-void update_info(node_information *);
+void update_info(int);

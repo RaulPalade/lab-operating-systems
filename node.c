@@ -13,12 +13,12 @@ static int balance;
 static int next_block_to_check = 0;
 
 int *readers;
-int *block_id;
+int *last_block_id;
 
 int id_shared_memory_ledger;
 int id_shared_memory_configuration;
 int id_shared_memory_readers;
-int id_shared_memory_block_id;
+int id_shared_memory_last_block_id;
 
 int id_shared_memory_nodes;
 
@@ -43,12 +43,11 @@ struct timeval timer;
  * 6) Remove transactions from transaction pool         
  */
 
-int main() {
+int main(int argc, char *argv[]) {
     int i;
     int success;
     transaction *transactions;
     block block;
-    int received;
     key_t key;
     struct sigaction sa;
 
@@ -87,6 +86,8 @@ int main() {
         raise(SIGQUIT);
     }
 
+    pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transactions));
+
     if ((key = ftok("./makefile", 'b')) < 0) {
         raise(SIGQUIT);
     }
@@ -103,11 +104,11 @@ int main() {
         raise(SIGQUIT);
     }
 
-    if ((id_shared_memory_block_id = shmget(key, 0, 0666)) < 0) {
+    if ((id_shared_memory_last_block_id = shmget(key, 0, 0666)) < 0) {
         raise(SIGQUIT);
     }
 
-    if ((void *) (block_id = shmat(id_shared_memory_block_id, NULL, 0)) < (void *) 0) {
+    if ((void *) (last_block_id = shmat(id_shared_memory_last_block_id, NULL, 0)) < (void *) 0) {
         raise(SIGQUIT);
     }
 
@@ -153,37 +154,30 @@ int main() {
     synchronize_resources(id_semaphore_init);
 
     while (1) {
-        gettimeofday(&timer, NULL);
-        received = 0;
-
-        printf("Reading transactions\n");
-        msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction), 0, 0);
-
-        success = add_to_transaction_pool(user_node_msg.t);
-        if (!success) {
-            /* INFORM USER TRANSACTION FAILED */
-            msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), IPC_NOWAIT);
-        }
-
-        if (transaction_pool_size >= SO_BLOCK_SIZE) {
-            transactions = extract_transactions_block_from_pool();
-            block = new_block(transactions);
-            acquire_resource(id_semaphore_writers, block_id);
-            success = add_to_ledger(master_ledger, block);
-            release_resource(id_semaphore_writers, block_id);
-
-            if (success) {
-                for (i = 0; i < SO_BLOCK_SIZE; i++) {
-                    remove_from_transaction_pool(transactions[i]);
-                }
+        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction), 0, 0) < 0) {
+            success = add_to_transaction_pool(user_node_msg.t);
+            if (!success) {
+                /* INFORM USER TRANSACTION FAILED */
+                msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), IPC_NOWAIT);
             }
-            free(transactions);
-        }
-    }
 
-    node_master_msg.args[0] = balance;
-    node_master_msg.args[1] = transaction_pool_size;
-    msgsnd(id_message_queue_master_node, &node_master_msg, sizeof(node_master_message) - sizeof(long), IPC_NOWAIT);
+            if (transaction_pool_size >= SO_BLOCK_SIZE) {
+                transactions = extract_transactions_block_from_pool();
+                block = new_block(transactions);
+
+                acquire_resource(id_semaphore_writers, *last_block_id);
+                success = add_to_ledger(master_ledger, block);
+                release_resource(id_semaphore_writers, *last_block_id);
+                if (success) {
+                    for (i = 0; i < SO_BLOCK_SIZE; i++) {
+                        remove_from_transaction_pool(transactions[i]);
+                    }
+                }
+                free(transactions);
+            }
+        }
+        update_info(atoi(argv[1]));
+    }
 }
 
 int add_to_transaction_pool(transaction t) {
@@ -217,19 +211,8 @@ int remove_from_transaction_pool(transaction t) {
     return removed;
 }
 
-int execute_transaction(transaction *t) {
-    int executed = 0;
-    struct timespec interval;
-    interval.tv_sec = 1;
-    interval.tv_nsec = 0;
-    printf("Executing transaction...\n");
-    nanosleep(&interval, NULL);
-
-    return executed;
-}
-
 /* Useless, when a set of transactions are extracted, they are
-   not in the ledger because when the block is executed
+   not in the ledger because when a block is added to ledger
    automatically those transactions are removed from pool */
 int ledger_has_transaction(ledger *ledger, transaction t) {
     int found = 0;
@@ -254,6 +237,7 @@ int add_to_ledger(ledger *ledger, block block) {
     if (ledger_size < SO_REGISTRY_SIZE) {
         (*ledger).blocks[ledger_size] = block;
         ledger_size++;
+        last_block_id++;
         added = 1;
     } else {
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
@@ -270,46 +254,57 @@ block new_block(transaction transactions[]) {
     int lower = config->SO_MIN_TRANS_PROC_NSEC;
     int upper = config->SO_MAX_TRANS_PROC_NSEC;
     block block;
-    srand(time(NULL));
+    struct timespec tp;
+    clockid_t clock_id;
+
+    clock_gettime(clock_id, &tp);
+    srand(tp.tv_sec);
     random = (rand() % (upper - lower)) + lower;
 
     interval.tv_sec = 0;
     interval.tv_nsec = random;
 
-    block.id = block_id;
+    block.id = *(last_block_id + 1);
     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
         block.transactions[i] = transactions[i];
         total_amount += transactions[i].amount;
     }
-    block.transactions[SO_BLOCK_SIZE] = new_reward_transaction(total_amount);
+
+    block.transactions[SO_BLOCK_SIZE - 1] = new_reward_transaction(total_amount);
     balance += total_amount;
-    block_id++;
+
     nanosleep(&interval, NULL);
 
     return block;
 }
 
-transaction new_reward_transaction(int amount) {
+transaction new_reward_transaction(int total_amount) {
+    struct timespec tp;
+    clockid_t clock_id;
     transaction transaction;
-    transaction.timestamp = time(NULL);
+
+    clock_gettime(clock_id, &tp);
+    transaction.timestamp = tp.tv_sec;
     transaction.sender = SENDER_TRANSACTION_REWARD;
     transaction.receiver = getpid();
-    transaction.amount = amount;
+    transaction.amount = total_amount;
     transaction.reward = 0;
 
     return transaction;
 }
 
 transaction *extract_transactions_block_from_pool() {
-    int i;
     int confirmed = 0;
     int lower = 0;
     int upper = transaction_pool_size;
-    int random = 0;
-    transaction *transactions = malloc(SO_BLOCK_SIZE * sizeof(transaction));
+    int random;
+    transaction *transactions = malloc((SO_BLOCK_SIZE - 1) * sizeof(transaction));
     int numbers[SO_BLOCK_SIZE - 1];
+    struct timespec tp;
+    clockid_t clock_id;
 
-    srand(time(NULL));
+    clock_gettime(clock_id, &tp);
+    srand(tp.tv_sec);
 
     while (confirmed < SO_BLOCK_SIZE - 1) {
         random = (rand() % (upper - lower)) + lower;
@@ -336,17 +331,17 @@ void reset_transaction_pool() {
     transaction_pool_size = 0;
 }
 
-void reset_ledger(ledger *ledger) {
+void reset_ledger() {
     memset(master_ledger->blocks, 0, sizeof(master_ledger->blocks));
     ledger_size = 0;
     next_block_to_check = 0;
-    block_id = 0;
 }
 
 void handler(int signal) {
-
+    printf("Signal = %d\n", signal);
 }
 
-void update_info(node_information *node) {
-
+void update_info(int index) {
+    node_info[index].balance = balance;
+    node_info[index].transactions_left = transaction_pool_size;
 }

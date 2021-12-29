@@ -163,7 +163,7 @@ void unlock(int);
  * Function used by master process to release
  * the init semaphore to allow node and user
  * processes to begin execution
- */  
+ */
 void unlock_init_semaphore(int);
 
 /**

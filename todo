@@ -1,0 +1,4 @@
+1. Sistemare le code di messaggi in modo che mandino i messaggi ai relativi utenti/nodi tramite il paramentro msgtype
+2. Gestire SO_RETRY sul processo utente
+3. Implementare la stampa di tutte le informazioni secondo per secondo e report finale nel processo master
+4. DUBBIO: Proteggere la variabile che identifica l'ultimo blocco. Per ora viene fatto quando un nodo acquisisce la risorsa

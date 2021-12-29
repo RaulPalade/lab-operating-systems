@@ -7,12 +7,12 @@ node_information (*node_info);
 user_information (*user_info);
 
 int *readers;
-int *block_id;
+int *last_block_id;     /* Used to read by user till this block */
 
 int id_shared_memory_ledger;            /* Ledger */
 int id_shared_memory_configuration;     /* Configuration */
 int id_shared_memory_readers;           /* Used to read, not needed because a piece of ledger is written just one time */
-int id_shared_memory_block_id;          /* Used to keep trace of block_id for next block and to read operations */
+int id_shared_memory_last_block_id;          /* Used to keep trace of block_id for next block and to read operations */
 
 int id_shared_memory_nodes;
 int id_shared_memory_users;
@@ -46,6 +46,9 @@ int main() {
     union semun sem_arg;
     struct semid_ds writers_ds;
     time_t current_time;
+
+    struct timespec tp;
+    clockid_t clock_id;
 
     struct timespec interval;
     interval.tv_sec = 1;
@@ -104,14 +107,14 @@ int main() {
         raise(SIGQUIT);
     }
 
-    if ((id_shared_memory_block_id = shmget(key, sizeof(block_id), IPC_CREAT | 0666)) < 0) {
+    if ((id_shared_memory_last_block_id = shmget(key, sizeof(last_block_id), IPC_CREAT | 0666)) < 0) {
         raise(SIGQUIT);
     }
 
-    if ((void *) (block_id = shmat(id_shared_memory_block_id, NULL, 0)) < (void *) 0) {
+    if ((void *) (last_block_id = shmat(id_shared_memory_last_block_id, NULL, 0)) < (void *) 0) {
         raise(SIGQUIT);
     }
-    *block_id = 0;
+    *last_block_id = 0;
 
 
     /* NODES AND USERS SHARED MEMORY TO STORE ID AND BALANCE */
@@ -138,7 +141,7 @@ int main() {
     if ((void *) (user_info = shmat(id_shared_memory_users, NULL, 0)) < (void *) 0) {
         raise(SIGQUIT);
     }
-    
+
     /* MESSAGE QUEUQ CREATION */
     id_message_queue_master_node = new_msg_queue_id('c');
     id_message_queue_master_user = new_msg_queue_id('d');
@@ -173,7 +176,7 @@ int main() {
         semval[i] = 1;
     }
     sem_arg.array = semval;
-    if(semctl(id_semaphore_writers, 0, SETALL, sem_arg) < 0) {
+    if (semctl(id_semaphore_writers, 0, SETALL, sem_arg) < 0) {
         EXIT_ON_ERROR
     }
 
@@ -190,33 +193,31 @@ int main() {
         EXIT_ON_ERROR
     }
 
-    
+
     printf("Launching Node processes\n");
     for (i = 0; i < (*config).SO_NODES_NUM; i++) {
-        switch (fork())
-        {
-        case -1:
-            EXIT_ON_ERROR
-        
-        case 0:
-            node_info[i].pid = getpid();
-            node_info[i].balance = 0;
-            node_info[i].transactions_left = 0;
-            execute_node(i);
+        switch (fork()) {
+            case -1:
+                EXIT_ON_ERROR
+
+            case 0:
+                node_info[i].pid = getpid();
+                node_info[i].balance = 0;
+                node_info[i].transactions_left = 0;
+                execute_node(i);
         }
     }
 
     printf("Launching User processes\n");
     for (i = 0; i < (*config).SO_USERS_NUM; i++) {
-        switch (fork())
-        {
-        case -1:
-            EXIT_ON_ERROR
-        
-        case 0:
-            user_info[i].pid = getpid();
-            user_info[i].balance = 0;
-            execute_user(i);
+        switch (fork()) {
+            case -1:
+                EXIT_ON_ERROR
+
+            case 0:
+                user_info[i].pid = getpid();
+                user_info[i].balance = 0;
+                execute_user(i);
         }
     }
 
@@ -225,6 +226,8 @@ int main() {
     printf("Starting timer right now\n");
     alarm((*config).SO_SIM_SEC);
 
+    clock_gettime(clock_id, &tp);
+    srand(tp.tv_sec);
     current_time = time(NULL);
     while (executing) {
         if ((time(NULL) - current_time) >= 1) {
