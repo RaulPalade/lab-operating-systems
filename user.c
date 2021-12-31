@@ -21,6 +21,7 @@ int *last_block_id;
 int id_shared_memory_ledger;
 int id_shared_memory_configuration;
 int id_shared_memory_users;
+int id_shared_memory_nodes;
 int id_shared_memory_last_block_id;
 
 int id_message_queue_master_user;
@@ -32,11 +33,6 @@ int id_semaphore_mutex;
 
 user_node_message user_node_msg;
 user_master_message user_master_msg;
-
-typedef struct {
-    long mtype;
-    char letter;
-} chat_message;
 
 /**
  * USER PROCESS
@@ -55,7 +51,6 @@ int main(int argc, char *argv[]) {
     int lower;
     int upper;
     long random;
-    chat_message cm;
     struct msqid_ds buf;
 
     memset(&sa, 0, sizeof(sa));
@@ -129,13 +124,27 @@ int main(int argc, char *argv[]) {
         raise(SIGQUIT);
     }
 
+    if ((key = ftok("./makefile", 'w')) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+
+    if ((id_shared_memory_nodes = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+
+    if ((void *) (node_info = shmat(id_shared_memory_nodes, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+
     /* MESSAGE QUEUE CONNECTION */
     if ((key = ftok("./makefile", 'd')) < 0) {
         EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_message_queue_master_user = msgget(key, 0666);
-
 
     if ((key = ftok("./makefile", 'e')) < 0) {
         EXIT_ON_ERROR
@@ -200,40 +209,34 @@ int main(int argc, char *argv[]) {
         update_info(atoi(argv[1]));
     } */
 
-
-    cm.mtype = 0;
-    cm.letter = 'A';
-    msgsnd(id_message_queue_node_user, &cm, sizeof(chat_message), 0);
-    msgctl(id_message_queue_node_user, IPC_STAT, &buf);
-    printf("Message in queue = %ld", buf.msg_qnum);
-    /* for (i = 0; i < 2; i++) {
-        update_info(atoi(argv[1]));
-        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0, 0) < 0) {
-            add_to_processing_list(user_node_msg.t);
-        }
-
-        calculate_balance();
-        printf("User[%d], Balance = %d\n", getpid(), balance);
-        if (balance >= 2) {
-            transaction = new_transaction();
-            user_node_msg.mtype = 0;
-            user_node_msg.t = transaction;
-            if ((msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0)) < 0) {
-                dying++;
-                if (dying == config->SO_RETRY) {
-                    update_info(atoi(argv[1]));
-                    kill(getppid(), SIGUSR1);
-                }
-            }
-
-            lower = config->SO_MIN_TRANS_GEN_NSEC;
-            upper = config->SO_MAX_TRANS_GEN_NSEC;
-            random = (rand() % (upper - lower + 1)) + lower;
-            interval.tv_sec = 0;
-            interval.tv_nsec = random;
-            nanosleep(&interval, NULL);
-        }
+    update_info(atoi(argv[1]));
+    /* if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0, 0) < 0) {
+        add_to_processing_list(user_node_msg.t);
     } */
+
+    calculate_balance();
+    if (balance >= 2) {
+        transaction = new_transaction();
+        user_node_msg.mtype = get_random_node();
+        user_node_msg.t = transaction;
+        print_table_header();
+        print_transaction(user_node_msg.t);
+        if ((msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
+            dying++;
+            if (dying == config->SO_RETRY) {
+                update_info(atoi(argv[1]));
+                kill(getppid(), SIGUSR1);
+            }
+        }
+
+        lower = config->SO_MIN_TRANS_GEN_NSEC;
+        upper = config->SO_MAX_TRANS_GEN_NSEC;
+        random = (rand() % (upper - lower + 1)) + lower;
+        interval.tv_sec = 0;
+        interval.tv_nsec = random;
+        nanosleep(&interval, NULL);
+    }
+    
 }
 
 transaction new_transaction() {
@@ -243,16 +246,16 @@ transaction new_transaction() {
     int random;
     int lower = 2;
     int upper = balance;
-    struct timespec interval;
-    clockid_t clock_id;
+    struct timespec tp;
 
-    clock_gettime(clock_id, &interval);
-    srand(interval.tv_sec);
+    clock_gettime(CLOCK_REALTIME, &tp);
+    srand(tp.tv_sec);
     random = (rand() % (upper - lower + 1)) + lower;
     toNode = (random * 20) / 100;
     toUser = random - toNode;
 
-    transaction.timestamp = interval.tv_sec;
+    clock_gettime(CLOCK_REALTIME, &tp);
+    transaction.timestamp = tp.tv_sec;
     transaction.sender = getpid();
     transaction.receiver = get_random_user();
     transaction.amount = toUser;
@@ -300,34 +303,39 @@ pid_t get_random_user() {
     int random;
     int lower = 0;
     int upper = config->SO_USERS_NUM;
-
     struct timespec tp;
     struct timespec interval;
-    clockid_t clock_id;
     interval.tv_sec = 1;
 
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_sec);
-    random = (rand() % (upper - lower + 1)) + lower;
+    random = (rand() % (upper - lower)) + lower;
     nanosleep(&interval, NULL);
 
-    return user_info[random].pid == getpid() ? get_random_user() : user_info[random].pid;
+    if (user_info[random].pid == getpid()) {
+        if(random == config->SO_USERS_NUM) {
+            random--;
+        }
+        if(random == 0) {
+            random++;
+        }
+    }
+
+    return user_info[random].pid;
 }
 
-/* pid_t get_random_node() {
+pid_t get_random_node() {
     int random;
     int lower = 0;
     int upper = config->SO_NODES_NUM;
-
     struct timespec tp;
-    clockid_t clock_id;
 
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_sec);
-    random = (rand() % (upper - lower + 1)) + lower;
+    random = (rand() % (upper - lower)) + lower;
 
     return node_info[random].pid;
-} */
+}
 
 void remove_from_processing_list(int position) {
     int i;

@@ -6,7 +6,7 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Thu Dec 30 21:13:07 2021
+# Make data base, printed on Fri Dec 31 14:14:28 2021
 
 # Variables
 
@@ -23,7 +23,7 @@ SNAP_INSTANCE_KEY =
 # environment
 GJS_DEBUG_OUTPUT = stderr
 # environment
-VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-86e0e220-41ff-4bc3-9e5b-ffebeb1fda77.sock
+VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-3bf6e7de-5c59-483e-b3ac-9a8022e1787d.sock
 # environment
 VSCODE_CWD = /home/raul
 # default
@@ -57,7 +57,7 @@ VSCODE_CODE_CACHE_PATH = /home/raul/.config/Code/CachedData/899d46d82c4c95423fb7
 # environment
 LANG = C
 # environment
-XAUTHORITY = /run/user/1000/.mutter-Xwaylandauth.BSNSE1
+XAUTHORITY = /run/user/1000/.mutter-Xwaylandauth.EQ6YE1
 # default
 .LOADED := 
 # default
@@ -99,7 +99,7 @@ SNAP_REEXEC =
 # environment
 VSCODE_VERBOSE_LOGGING = true
 # environment
-VSCODE_PID = 2230
+VSCODE_PID = 2174
 # environment
 XDG_SESSION_TYPE = wayland
 # automatic
@@ -107,7 +107,7 @@ XDG_SESSION_TYPE = wayland
 # environment
 BAMF_DESKTOP_FILE_HINT = /var/lib/snapd/desktop/applications/code_code.desktop
 # environment
-SESSION_MANAGER = local/raul-VirtualBox:@/tmp/.ICE-unix/1255,unix/raul-VirtualBox:/tmp/.ICE-unix/1255
+SESSION_MANAGER = local/raul-VirtualBox:@/tmp/.ICE-unix/1245,unix/raul-VirtualBox:/tmp/.ICE-unix/1245
 # automatic
 *F = $(notdir $*)
 # environment
@@ -153,7 +153,7 @@ SNAP_USER_COMMON = /home/raul/snap/code/common
 # environment
 SNAP = /snap/code/85
 # environment
-INVOCATION_ID = 337c58c4c47646f38f7e9935b13b26b8
+INVOCATION_ID = 31bd0cec9e2847a19b76ea77bbb48d24
 # environment
 SNAP_REVISION = 85
 # environment
@@ -203,9 +203,9 @@ SNAP_DATA = /var/snap/code/85
 # environment
 SNAP_CONTEXT = 4C6i8ju1U0oVDa71vVT4gdeiOCAKoIouy68QUZ8KHsW_1KLI30aC
 # environment
-MANAGERPID = 1138
+MANAGERPID = 1127
 # environment
-GIO_LAUNCHED_DESKTOP_FILE_PID = 2182
+GIO_LAUNCHED_DESKTOP_FILE_PID = 2051
 # environment
 _ = /snap/code/85/usr/share/code/code
 # environment
@@ -215,7 +215,7 @@ CFLAGS = -std=c89 -pedantic
 # environment
 GDK_PIXBUF_MODULE_FILE = /home/raul/snap/code/common/.cache/gdk-pixbuf-loaders.cache
 # environment
-JOURNAL_STREAM = 8:21258
+JOURNAL_STREAM = 8:22952
 # environment
 XDG_SESSION_CLASS = user
 # environment
@@ -267,9 +267,9 @@ SNAP_LIBRARY_PATH = /var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd
 
 # Directories
 
-# . (device 2051, inode 920351): 23 files, no impossibilities.
+# . (device 2051, inode 920351): 27 files, no impossibilities.
 
-# 23 files, no impossibilities in 1 directories.
+# 27 files, no impossibilities in 1 directories.
 
 # Implicit Rules
 
@@ -278,8 +278,8 @@ SNAP_LIBRARY_PATH = /var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd
 # Files
 
 # Not a target:
-util.o:
  
+util.o:
 #  Implicit rule search has not been done.
 #  Modification time never checked.
 #  File has not been updated.
@@ -320,7 +320,7 @@ node.o: master.c
 
 master: master.o util.o
 #  Implicit rule search has not been done.
-#  Last modified 2021-12-30 21:10:08.238466074
+#  Last modified 2021-12-31 12:45:54.147712634
 #  File has been updated.
 #  Needs to be updated (-q is set).
 # variable set hash-table stats:
@@ -367,7 +367,7 @@ user.o: master.c
 # Not a target:
 master.c:
 #  Implicit rule search has been done.
-#  Last modified 2021-12-30 21:09:58.786443464
+#  Last modified 2021-12-31 12:46:16.175812387
 #  File has been updated.
 #  Successfully updated.
 
@@ -392,12 +392,12 @@ user: user.o util.o
 
 # No general ('VPATH' variable) search path.
 
-# strcache buffers: 1 (0) / strings = 32 / storage = 246 B / avg = 7 B
-# current buf: size = 8162 B / used = 246 B / count = 32 / avg = 7 B
+# strcache buffers: 1 (0) / strings = 36 / storage = 305 B / avg = 8 B
+# current buf: size = 8162 B / used = 305 B / count = 36 / avg = 8 B
 
-# strcache performance: lookups = 59 / hit rate = 45%
+# strcache performance: lookups = 63 / hit rate = 42%
 # hash-table stats:
-# Load=32/8192=0%, Rehash=0, Collisions=0/59=0%
-# Finished Make data base on Thu Dec 30 21:13:07 2021
+# Load=36/8192=0%, Rehash=0, Collisions=0/63=0%
+# Finished Make data base on Fri Dec 31 14:14:28 2021
 
  

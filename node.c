@@ -33,11 +33,6 @@ user_node_message user_node_msg;
 node_master_message node_master_msg;
 struct timeval timer;
 
-typedef struct {
-    long mtype;
-    char letter;
-} chat_message;
-
 /**
  * NODE PROCESS
  * 1) Receive transaction from User                     
@@ -55,7 +50,6 @@ int main(int argc, char *argv[]) {
     block block;
     key_t key;
     struct sigaction sa;
-    chat_message cm;
     struct msqid_ds buf;
 
     memset(&sa, 0, sizeof(sa));
@@ -188,37 +182,49 @@ int main(int argc, char *argv[]) {
             }
         }
         update_info(atoi(argv[1]));
-    } */
-    
+    } */    
+
     msgctl(id_message_queue_node_user, IPC_STAT, &buf);
-    printf("Message in queue = %ld", buf.msg_qnum);
-    /* msgrcv(id_message_queue_node_user, &cm, sizeof(chat_message), 0, 0);
-    printf("Message = %c\n", cm.letter); */
-    /* if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0, 0) < 0) {
-        success = add_to_transaction_pool(user_node_msg.t);
-        printf("Node [%d] transaction received?\n", getpid());
-        print_transaction(user_node_msg.t);
-        if (!success) {
-            user_node_msg.mtype = getpid();
-            msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0);
-        }
+    printf("Node[%d] found %ld messages in queue\n", getpid(), buf.msg_qnum);
+    /* msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+    print_transaction(user_node_msg.t);
 
-        if (transaction_pool_size >= SO_BLOCK_SIZE) {
-            transactions = extract_transactions_block_from_pool();
-            block = new_block(transactions);
+     msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+    print_transaction(user_node_msg.t); */
+    
+    msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+    success = add_to_transaction_pool(user_node_msg.t);
+    msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+    success = add_to_transaction_pool(user_node_msg.t);
+    print_transaction_pool();
+    /* if (!success) {
+        user_node_msg.mtype = 2;
+        msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 1);
+    } */
 
-            acquire_resource(id_semaphore_writers, *last_block_id);
-            success = add_to_ledger(master_ledger, block);
-            release_resource(id_semaphore_writers, *last_block_id);
-            if (success) {
-                for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
-                    remove_from_transaction_pool(transactions[i]);
-                }
+    if (transaction_pool_size >= SO_BLOCK_SIZE) {
+        printf("transaction_pool_size >= SO_BLOCK_SIZE\n");
+        transactions = extract_transactions_block_from_pool();
+        block = new_block(transactions);
+
+        printf("Semaphore value before acquire = %d\n", semctl(id_semaphore_writers, 0, GETVAL));
+        acquire_resource(id_semaphore_writers, *last_block_id);
+        success = add_to_ledger(master_ledger, block);
+        release_resource(id_semaphore_writers, *last_block_id);
+        printf("Semaphore value before acquire = %d\n", semctl(id_semaphore_writers, 0, GETVAL));
+        if (success) {
+            for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
+                remove_from_transaction_pool(transactions[i]);
             }
         }
+    } else {
+        printf("transaction_pool_size < SO_BLOCK_SIZE\n");
     }
+
     print_ledger(master_ledger);
-    update_info(atoi(argv[1])); */
+
+    /* print_ledger(master_ledger); */
+    update_info(atoi(argv[1]));
 }
 
 int add_to_transaction_pool(transaction t) {
@@ -273,8 +279,11 @@ int ledger_has_transaction(ledger *ledger, transaction t) {
     return found;
 }
 
-int add_to_ledger(ledger *ledger, block block) {
+int add_to_ledger(ledger *ledger, block block) {  
     int added = 0;
+    printf("Semaphore value in = %d\n", semctl(id_semaphore_writers, 0, GETVAL));
+    print_block(block);
+    printf("Ledger size = %d\n", ledger_size);
     if (ledger_size < SO_REGISTRY_SIZE) {
         (*ledger).blocks[ledger_size] = block;
         ledger_size++;
@@ -286,21 +295,25 @@ int add_to_ledger(ledger *ledger, block block) {
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
+    printf("Ledger size = %d\n", ledger_size);
+    print_transaction(master_ledger->blocks[0].transactions[0]);
+    print_transaction(master_ledger->blocks[0].transactions[1]);
+
+
     return added;
 }
 
 block new_block(transaction transactions[]) {
     int i;
-    int total_amount;
+    int total_reward = 0;
     int random;
     struct timespec interval;
     int lower = config->SO_MIN_TRANS_PROC_NSEC;
     int upper = config->SO_MAX_TRANS_PROC_NSEC;
     block block;
     struct timespec tp;
-    clockid_t clock_id;
 
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_sec);
     random = (rand() % (upper - lower)) + lower;
 
@@ -310,11 +323,15 @@ block new_block(transaction transactions[]) {
     block.id = *(last_block_id + 1);
     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
         block.transactions[i] = transactions[i];
-        total_amount += transactions[i].amount;
+        total_reward += transactions[i].reward;
     }
 
-    block.transactions[SO_BLOCK_SIZE - 1] = new_reward_transaction(total_amount);
-    balance += total_amount;
+    block.transactions[SO_BLOCK_SIZE - 1] = new_reward_transaction(total_reward);
+    balance += total_reward;
+
+    printf("\nnewBlock function\n");
+    print_transaction(block.transactions[0]);
+    print_transaction(block.transactions[1]);
 
     nanosleep(&interval, NULL);
 
@@ -323,10 +340,9 @@ block new_block(transaction transactions[]) {
 
 transaction new_reward_transaction(int total_amount) {
     struct timespec tp;
-    clockid_t clock_id;
     transaction transaction;
 
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
     transaction.timestamp = tp.tv_sec;
     transaction.sender = SENDER_TRANSACTION_REWARD;
     transaction.receiver = getpid();
@@ -339,14 +355,13 @@ transaction new_reward_transaction(int total_amount) {
 transaction *extract_transactions_block_from_pool() {
     int confirmed = 0;
     int lower = 0;
-    int upper = transaction_pool_size;
+    int upper = transaction_pool_size - 1;
     int random;
     transaction *transactions = malloc((SO_BLOCK_SIZE - 1) * sizeof(transaction));
     int numbers[SO_BLOCK_SIZE - 1];
     struct timespec tp;
-    clockid_t clock_id;
 
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_sec);
 
     while (confirmed < SO_BLOCK_SIZE - 1) {
@@ -363,6 +378,7 @@ transaction *extract_transactions_block_from_pool() {
 
 void print_transaction_pool() {
     int i;
+    printf("Printing transaction pool\n");
     print_table_header();
     for (i = 0; i < transaction_pool_size; i++) {
         print_transaction(pool.transactions[i]);

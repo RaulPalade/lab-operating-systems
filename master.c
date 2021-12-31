@@ -154,51 +154,9 @@ int main() {
     }
 
     /* MESSAGE QUEUQ CREATION */
-    /* id_message_queue_master_node = new_msg_queue_id('c');
-    id_message_queue_master_user = new_msg_queue_id('d'); */
-    /* id_message_queue_node_user = new_msg_queue_id('e'); */
-
-    if ((key = ftok("./makefile", 'c') ) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    } else {
-        printf("key = %d\n", key);
-    }
-
-    if ((id_message_queue_master_node = msgget(key, IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    } else {
-        printf("id_message_queue_master_node = %d\n", id_message_queue_master_node);
-    }
-
-    if ((key = ftok("./makefile", 'd') ) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    } else {
-        printf("key = %d\n", key);
-    }
-
-    if ((id_message_queue_master_user = msgget(key, IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    } else {
-        printf("id_message_queue_master_user = %d\n", id_message_queue_master_user);
-    }
-
-    if ((key = ftok("./makefile", 'e') ) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    } else {
-        printf("key = %d\n", key);
-    }
-
-    if ((id_message_queue_node_user = msgget(key, IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    } else {
-        printf("id_message_queue_node_user = %d\n", id_message_queue_node_user);
-    }
+    id_message_queue_master_node = new_msg_queue_id('c');
+    id_message_queue_master_user = new_msg_queue_id('d');
+    id_message_queue_node_user = new_msg_queue_id('e');
 
     /* SEMAPHORE CREATION */
     if ((key = ftok("./makefile", 'f')) < 0) {
@@ -240,14 +198,8 @@ int main() {
     if (semctl(id_semaphore_mutex, 0, SETVAL, sem_arg)) {
         EXIT_ON_ERROR
     }
-
-    cm.mtype = 0;
-    cm.letter = 'A';
-    msgsnd(id_message_queue_node_user, &cm, sizeof(chat_message), 0);
-    msgctl(id_message_queue_node_user, IPC_STAT, &buf);
-    printf("Total messages in queue = %ld\n", buf.msg_qnum);
     
-    /* printf("Launching Node processes\n");
+    printf("Launching Node processes\n");
     for (i = 0; i < (*config).SO_NODES_NUM; i++) {
         switch (node_pid = fork()) {
             case -1:
@@ -282,16 +234,16 @@ int main() {
     alarm(config->SO_SIM_SEC);
     unlock_init_semaphore(id_semaphore_init);
     while (executing && !ledger_full && active_users > 0) {
-        print_ledger(master_ledger);
+        /* print_ledger(master_ledger); */
         print_node_info();
         print_user_info();
         printf("Remaining seconds = %d\n", remaining_seconds--);
         nanosleep(&interval, NULL);
     }
 
-    kill(0, SIGQUIT);
-    print_final_report(); */
-
+    /* kill(0, SIGQUIT); */
+    print_final_report();
+    print_ledger(master_ledger);
     
     /* while (wait(NULL) > 0) {} */
 

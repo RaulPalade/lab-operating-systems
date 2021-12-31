@@ -52,21 +52,22 @@ int main() {
     interval.tv_nsec = 0;
 
     if ((key = ftok("./makefile", 'a') ) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
+        printf("Error during key creation\n");
     } else {
         printf("key = %d\n", key);
     }
 
+    printf("Creating the message queue...\n");
     if ((id_message_queue_node_user = msgget(key, IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
+        printf("Error during message queue creation\n");
     } else {
         printf("id_message_queue_node_user = %d\n", id_message_queue_node_user);
     }
 
 
-    cm.mtype = 0;
+    cm.mtype = 1;
+        printf("Sending the message to chat b...\n");
+
     cm.letter = 'A';
     msgsnd(id_message_queue_node_user, &cm, sizeof(chat_message), 0);
     msgctl(id_message_queue_node_user, IPC_STAT, &buf);

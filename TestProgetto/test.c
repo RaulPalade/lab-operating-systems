@@ -559,8 +559,7 @@ block new_block(transaction transactions[]) {
 transaction new_reward_transaction(pid_t receiver, int amount) {
     transaction transaction;
     struct timespec tp;
-    clockid_t clock_id;
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
 
     transaction.timestamp = tp.tv_sec;
     transaction.sender = SENDER_TRANSACTION_REWARD;
@@ -581,9 +580,8 @@ transaction *extract_transaction_block_from_pool() {
     int numbers[SO_BLOCK_SIZE];
 
     struct timespec tp;
-    clockid_t clock_id;
 
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_sec);
 
     while (confirmed < SO_BLOCK_SIZE) {
@@ -610,11 +608,10 @@ transaction new_transaction(pid_t receiver, int amount, int reward) {
     int lower = 2;
     int upper = balance;
     struct timespec tp;
-    clockid_t clock_id;
     interval.tv_sec = 1;
     interval.tv_nsec = 0;
     
-    clock_gettime(clock_id, &tp);
+    clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_sec);
     random = (rand() % (upper - lower + 1)) + lower;
     toNode = (random * 20) / 100;

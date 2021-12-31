@@ -1,6 +1,7 @@
 #include "util.h"
 
-static int ledger_size = 0;
+/* Ledger size must be managed in shared memory in order to use print function */
+static int ledger_size = 1;
 static int transaction_pool_size = 0;
 static int block_id = 0;
 static int next_block_to_check = 0;
