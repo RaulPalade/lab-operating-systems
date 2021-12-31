@@ -1,21 +1,21 @@
-##
-# Transaction Simulator
-#
-# @file
-# @version 1
-#
-CC = -gcc
-CFLAGS := -std=c89 -pedantic
+CFLAGS = -std=c89 -pedantic
 
-transaction_simulation: master.o master.h node source cleanall node.h user.h util.h
-						$(CC) $(CFLAGS) -o transaction_simulator master.c
+all: master node user
 
-node: node.o node.h util.h
-	$(CC) $(CFLAGS) -o node node.c util.c
+master: master.o util.o
+	gcc master.o util.o -o master
 
-user: user.o user.h util.h
-	$(CC) $(CFLAGS) -o user user.c util.c
+node: node.o util.o
+	gcc node.o util.o -o util
 
-cleanall:
-		rm -f *.o
-#end
+user: user.o util.o
+	gcc user.o util.o -o user
+
+master.o: master.c
+	gcc -c $(CFLAGS) master.c
+
+node.o: master.c
+	gcc -c $(CFLAGS) node.c
+
+user.o: master.c
+	gcc -c $(CFLAGS) user.c

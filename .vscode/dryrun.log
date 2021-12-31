@@ -1,10 +1,11 @@
 make --dry-run --always-make --keep-going --print-directory
 make: Entering directory '/home/raul/Scrivania/laboratorio-sistemi-operativi-2021-2022'
-gcc -std=c89 -pedantic   -c -o master.o master.c
-gcc -std=c89 -pedantic   -c -o node.o node.c
-gcc -std=c89 -pedantic -o node node.c util.c
-rm -f *.o
+gcc -c -std=c89 -pedantic master.c
+cc -std=c89 -pedantic   -c -o util.o util.c
+gcc master.o util.o -o master
+gcc -c -std=c89 -pedantic node.c
+gcc node.o util.o -o util
+gcc -c -std=c89 -pedantic user.c
+gcc user.o util.o -o user
 make: Leaving directory '/home/raul/Scrivania/laboratorio-sistemi-operativi-2021-2022'
- 
-make: *** No rule to make target 'source', needed by 'transaction_simulation'.
  

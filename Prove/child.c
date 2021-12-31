@@ -1,4 +1,7 @@
-//
-// Created by raul on 30/12/21.
-//
+#include "../util.h"
 
+int main(int argc, char *argv[]) {
+    key_t key;
+
+    
+}

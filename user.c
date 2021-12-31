@@ -7,8 +7,9 @@ transaction (*processing_transactions);
 transaction (*completed_transactions);
 
 user_information (*user_info);
+user_information (*node_info);
 
-static int balance = 100;
+static int balance = 0;
 static int next_block_to_check = 0;
 static int dying = 0;
 
@@ -32,6 +33,11 @@ int id_semaphore_mutex;
 user_node_message user_node_msg;
 user_master_message user_master_msg;
 
+typedef struct {
+    long mtype;
+    char letter;
+} chat_message;
+
 /**
  * USER PROCESS
  * 1) Calculate balance from ledger
@@ -41,6 +47,7 @@ user_master_message user_master_msg;
  * 5) Send transaction
  */
 int main(int argc, char *argv[]) {
+    int i;
     key_t key;
     struct sigaction sa;
     transaction transaction;
@@ -48,6 +55,8 @@ int main(int argc, char *argv[]) {
     int lower;
     int upper;
     long random;
+    chat_message cm;
+    struct msqid_ds buf;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
@@ -61,95 +70,116 @@ int main(int argc, char *argv[]) {
 
     /* SHARED MEMORY CONNECTION */
     if ((key = ftok("./makefile", 'a')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_ledger = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((key = ftok("./makefile", 'x')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_configuration = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (config = shmat(id_shared_memory_configuration, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((key = ftok("./makefile", 'y')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_last_block_id = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (last_block_id = shmat(id_shared_memory_last_block_id, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((key = ftok("./makefile", 'z')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_users = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (user_info = shmat(id_shared_memory_users, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     /* MESSAGE QUEUE CONNECTION */
     if ((key = ftok("./makefile", 'd')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_message_queue_master_user = msgget(key, 0666);
 
 
     if ((key = ftok("./makefile", 'e')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_message_queue_node_user = msgget(key, 0666);
 
     /* SEMAPHORE CONNECTION */
     if ((key = ftok("./makefile", 'f')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_semaphore_init = semget(key, 0, 0666);
 
     if ((key = ftok("./makefile", 'g')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_semaphore_writers = semget(key, 0, 0666);
 
     if ((key = ftok("./makefile", 'h')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_semaphore_mutex = semget(key, 0, 0666);
 
+    balance = config->SO_BUDGET_INIT;
     synchronize_resources(id_semaphore_init);
-    while (1) {
-        /* RICEVERE MESSAGGIO DAL NODO SE LA TRANSAZIONE E FALLITA */
-        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0, IPC_NOWAIT) <
-            0) {
+    /* while (1) {
+        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0, 0) < 0) {
             add_to_processing_list(user_node_msg.t);
         }
 
-        /* INVIA TRANSAZIONE SE POSSIBILE */
         calculate_balance();
+        printf("Balance = %d\n", balance);
+        if(balance < 0) {
+            raise(SIGKILL);
+        }
         if (balance >= 2) {
             transaction = new_transaction();
-            add_to_processing_list(transaction);
-            user_node_msg.mtype = get_random_node();
+            print_transaction(transaction);
+            printf("processing list\n");
+            print_processing_list();
+            user_node_msg.mtype = 0;
             user_node_msg.t = transaction;
             if ((msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0)) < 0) {
                 dying++;
@@ -164,11 +194,46 @@ int main(int argc, char *argv[]) {
             random = (rand() % (upper - lower + 1)) + lower;
             interval.tv_sec = 0;
             interval.tv_nsec = random;
+            nanosleep(&interval, NULL);
         }
 
-        /* AGGIORNARE USER INFO */
         update_info(atoi(argv[1]));
-    }
+    } */
+
+
+    cm.mtype = 0;
+    cm.letter = 'A';
+    msgsnd(id_message_queue_node_user, &cm, sizeof(chat_message), 0);
+    msgctl(id_message_queue_node_user, IPC_STAT, &buf);
+    printf("Message in queue = %ld", buf.msg_qnum);
+    /* for (i = 0; i < 2; i++) {
+        update_info(atoi(argv[1]));
+        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0, 0) < 0) {
+            add_to_processing_list(user_node_msg.t);
+        }
+
+        calculate_balance();
+        printf("User[%d], Balance = %d\n", getpid(), balance);
+        if (balance >= 2) {
+            transaction = new_transaction();
+            user_node_msg.mtype = 0;
+            user_node_msg.t = transaction;
+            if ((msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0)) < 0) {
+                dying++;
+                if (dying == config->SO_RETRY) {
+                    update_info(atoi(argv[1]));
+                    kill(getppid(), SIGUSR1);
+                }
+            }
+
+            lower = config->SO_MIN_TRANS_GEN_NSEC;
+            upper = config->SO_MAX_TRANS_GEN_NSEC;
+            random = (rand() % (upper - lower + 1)) + lower;
+            interval.tv_sec = 0;
+            interval.tv_nsec = random;
+            nanosleep(&interval, NULL);
+        }
+    } */
 }
 
 transaction new_transaction() {
@@ -204,11 +269,13 @@ int calculate_balance() {
     for (i = next_block_to_check; i < *last_block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE; j++) {
             if ((*master_ledger).blocks[i].transactions[j].sender == getpid()) {
+                printf("no\n");
                 balance -= ((*master_ledger).blocks[i].transactions[j].amount +
                             (*master_ledger).blocks[i].transactions[j].reward);
             }
 
             if ((*master_ledger).blocks[i].transactions[j].receiver == getpid()) {
+                printf("yes\n");
                 balance += (*master_ledger).blocks[i].transactions[j].amount;
             }
 
@@ -230,22 +297,25 @@ int calculate_balance() {
 }
 
 pid_t get_random_user() {
-    pid_t user;
+    int random;
     int lower = 0;
     int upper = config->SO_USERS_NUM;
 
     struct timespec tp;
+    struct timespec interval;
     clockid_t clock_id;
+    interval.tv_sec = 1;
 
     clock_gettime(clock_id, &tp);
     srand(tp.tv_sec);
-    user = (rand() % (upper - lower + 1)) + lower;
+    random = (rand() % (upper - lower + 1)) + lower;
+    nanosleep(&interval, NULL);
 
-    return user == getpid() ? get_random_user() : user;
+    return user_info[random].pid == getpid() ? get_random_user() : user_info[random].pid;
 }
 
-pid_t get_random_node() {
-    pid_t node;
+/* pid_t get_random_node() {
+    int random;
     int lower = 0;
     int upper = config->SO_NODES_NUM;
 
@@ -254,10 +324,10 @@ pid_t get_random_node() {
 
     clock_gettime(clock_id, &tp);
     srand(tp.tv_sec);
-    node = (rand() % (upper - lower + 1)) + lower;
+    random = (rand() % (upper - lower + 1)) + lower;
 
-    return node;
-}
+    return node_info[random].pid;
+} */
 
 void remove_from_processing_list(int position) {
     int i;
@@ -297,9 +367,38 @@ void print_completed_list() {
 }
 
 void handler(int signal) {
-    printf("Signal = %d\n", signal);
+    /* if (signal == SIGINT) {
+        printf("User received SIGINT\n");
+        raise(SIGKILL);
+    } */
+    switch (signal)
+    {
+    case SIGALRM:
+        raise(SIGINT);
+        break;
+
+    case SIGINT:
+        printf("User received SIGINT\n");
+        /* shmdt(master_ledger);
+        shmdt(config);
+        shmdt(last_block_id);
+        shmdt(user_info); */
+        raise(SIGKILL);
+
+    case SIGUSR1:
+        printf("User received SIGUSR1\n");
+        break;
+
+    case SIGTSTP:
+        printf("User received SIGTSTP\n");
+        /* user_request(); */
+        break;
+    
+    default:
+        break;
+    }
 }
 
 void update_info(int index) {
-    user_info[index].balance = balance;
+    user_info[index].balance = calculate_balance();
 }

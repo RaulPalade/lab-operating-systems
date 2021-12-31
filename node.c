@@ -9,7 +9,7 @@ node_information (*node_info);
 
 static int ledger_size = 0;
 static int transaction_pool_size = 0;
-static int balance;
+static int balance = 0;
 static int next_block_to_check = 0;
 
 int *readers;
@@ -33,6 +33,11 @@ user_node_message user_node_msg;
 node_master_message node_master_msg;
 struct timeval timer;
 
+typedef struct {
+    long mtype;
+    char letter;
+} chat_message;
+
 /**
  * NODE PROCESS
  * 1) Receive transaction from User                     
@@ -50,6 +55,8 @@ int main(int argc, char *argv[]) {
     block block;
     key_t key;
     struct sigaction sa;
+    chat_message cm;
+    struct msqid_ds buf;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
@@ -63,101 +70,105 @@ int main(int argc, char *argv[]) {
 
     /* SHARED MEMORY CONNECTION */
     if ((key = ftok("./makefile", 'a')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_ledger = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((key = ftok("./makefile", 'x')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_configuration = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (config = shmat(id_shared_memory_configuration, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transactions));
 
-    if ((key = ftok("./makefile", 'b')) < 0) {
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_readers = shmget(key, 0, 0666)) < 0) {
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (readers = shmat(id_shared_memory_readers, NULL, 0)) < (void *) 0) {
-        raise(SIGQUIT);
-    }
-
     if ((key = ftok("./makefile", 'y')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_last_block_id = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (last_block_id = shmat(id_shared_memory_last_block_id, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((key = ftok("./makefile", 'w')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((id_shared_memory_nodes = shmget(key, 0, 0666)) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     if ((void *) (node_info = shmat(id_shared_memory_nodes, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
 
     /* MESSAGE QUEUE CONNECTION */
     if ((key = ftok("./makefile", 'c')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_message_queue_master_node = msgget(key, 0666);
 
     if ((key = ftok("./makefile", 'e')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_message_queue_node_user = msgget(key, 0666);
 
     /* SEMAPHORE CONNECTION */
     if ((key = ftok("./makefile", 'f')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_semaphore_init = semget(key, 0, 0666);
 
     if ((key = ftok("./makefile", 'g')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_semaphore_writers = semget(key, 0, 0666);
 
     if ((key = ftok("./makefile", 'h')) < 0) {
+        EXIT_ON_ERROR
         raise(SIGQUIT);
     }
     id_semaphore_mutex = semget(key, 0, 0666);
 
     synchronize_resources(id_semaphore_init);
-
-    while (1) {
-        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction), getpid(), IPC_NOWAIT) < 0) {
+    
+    /* while (1) {
+        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), 0, 0) < 0) {
             success = add_to_transaction_pool(user_node_msg.t);
             if (!success) {
-                /* INFORM USER TRANSACTION FAILED */
                 user_node_msg.mtype = getpid();
                 msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), 0);
             }
@@ -174,11 +185,40 @@ int main(int argc, char *argv[]) {
                         remove_from_transaction_pool(transactions[i]);
                     }
                 }
-                free(transactions);
             }
         }
         update_info(atoi(argv[1]));
+    } */
+    
+    msgctl(id_message_queue_node_user, IPC_STAT, &buf);
+    printf("Message in queue = %ld", buf.msg_qnum);
+    /* msgrcv(id_message_queue_node_user, &cm, sizeof(chat_message), 0, 0);
+    printf("Message = %c\n", cm.letter); */
+    /* if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0, 0) < 0) {
+        success = add_to_transaction_pool(user_node_msg.t);
+        printf("Node [%d] transaction received?\n", getpid());
+        print_transaction(user_node_msg.t);
+        if (!success) {
+            user_node_msg.mtype = getpid();
+            msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0);
+        }
+
+        if (transaction_pool_size >= SO_BLOCK_SIZE) {
+            transactions = extract_transactions_block_from_pool();
+            block = new_block(transactions);
+
+            acquire_resource(id_semaphore_writers, *last_block_id);
+            success = add_to_ledger(master_ledger, block);
+            release_resource(id_semaphore_writers, *last_block_id);
+            if (success) {
+                for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
+                    remove_from_transaction_pool(transactions[i]);
+                }
+            }
+        }
     }
+    print_ledger(master_ledger);
+    update_info(atoi(argv[1])); */
 }
 
 int add_to_transaction_pool(transaction t) {
@@ -241,6 +281,8 @@ int add_to_ledger(ledger *ledger, block block) {
         last_block_id++;
         added = 1;
     } else {
+        printf("Ledger size = %d\n", ledger_size);
+        kill(getppid(), SIGUSR2);
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
@@ -339,7 +381,10 @@ void reset_ledger() {
 }
 
 void handler(int signal) {
-    printf("Signal = %d\n", signal);
+    if (signal == SIGINT) {
+        printf("Node received SIGINT\n");
+        raise(SIGKILL);
+    }
 }
 
 void update_info(int index) {

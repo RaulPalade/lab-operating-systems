@@ -18,8 +18,8 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 
-#define SO_BLOCK_SIZE 5
-#define SO_REGISTRY_SIZE 5
+#define SO_BLOCK_SIZE 2
+#define SO_REGISTRY_SIZE 2
 #define SENDER_TRANSACTION_REWARD -1
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -32,7 +32,7 @@
 
 #define EXIT_ON_ERROR                                                                                           \
     if (errno) {                                                                                                \
-        fprintf(stderr, "%d: pid %ld; errno: %d (%s)\n", __LINE__, (long)getpid(), errno, strerror(errno));     \
+        fprintf(stderr, "File %s %d: pid %ld; errno: %d (%s)\n", __FILE__, __LINE__, (long)getpid(), errno, strerror(errno));     \
         raise(SIGINT);                                                                                          \
     }
 
@@ -50,6 +50,7 @@ typedef struct {
     int SO_BUDGET_INIT;
     int SO_SIM_SEC;
     int SO_FRIENDS_NUM;
+    int SO_HOPS;
 } configuration;
 
 typedef struct {
@@ -172,12 +173,6 @@ void unlock_init_semaphore(int);
  * execution after the master process ended resourse init
  */
 void synchronize_resources(int);
-
-
-/**
- * Read the initial configuration from file
- */
-void read_configuration(configuration *);
 
 int equal_transaction(transaction, transaction);
 

@@ -19,4 +19,9 @@ void print_user_info();
 
 void print_final_report();
 
+/**
+ * Read the initial configuration from file
+ */
+configuration read_configuration();
+
 #endif

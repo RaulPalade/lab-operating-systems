@@ -2,7 +2,6 @@
 
 static int ledger_size = 0;
 static int transaction_pool_size = 0;
-static int balance = 100;
 static int block_id = 0;
 static int next_block_to_check = 0;
 
@@ -63,8 +62,6 @@ void unlock_init_semaphore(int semaphore) {
     buf.sem_flg = 0;
     if (semop(semaphore, &buf, 1) < 0) {
         EXIT_ON_ERROR
-    } else {
-        printf("All resources initialized\n");
     }
 }
 
@@ -78,65 +75,6 @@ void synchronize_resources(int semaphore) {
         kill(getppid(), SIGUSR1);
         raise(SIGINT);
     }
-}
-
-void read_configuration(configuration *configuration) {
-    FILE *file;
-    char s[23];
-    char comment;
-    char filename[] = "configuration.conf";
-    int value;
-    int i;
-    file = fopen(filename, "r");
-
-    while (fscanf(file, "%s", s) == 1) {
-        switch (s[0]) {
-            case '#':
-                do {
-                    comment = fgetc(file);
-                } while (comment != '\n');
-                break;
-
-            default:
-                fscanf(file, "%d\n", &value);
-                if (value < 0) {
-                    printf("value < 0\n");
-                    kill(0, SIGINT);
-                }
-                if (strncmp(s, "SO_USERS_NUM", 12) == 0) {
-                    configuration->SO_USERS_NUM = value;
-                } else if (strncmp(s, "SO_NODES_NUM", 12) == 0) {
-                    configuration->SO_NODES_NUM = value;
-                } else if (strncmp(s, "SO_REWARD", 9) == 0) {
-                    configuration->SO_REWARD = value;
-                } else if (strncmp(s, "SO_MIN_TRANS_GEN_NSEC", 21) == 0) {
-                    configuration->SO_MIN_TRANS_GEN_NSEC = value;
-                } else if (strncmp(s, "SO_MAX_TRANS_GEN_NSEC", 21) == 0) {
-                    configuration->SO_MAX_TRANS_GEN_NSEC = value;
-                } else if (strncmp(s, "SO_RETRY", 8) == 0) {
-                    configuration->SO_RETRY = value;
-                } else if (strncmp(s, "SO_TP_SIZE", 10) == 0) {
-                    configuration->SO_TP_SIZE = value;
-                } else if (strncmp(s, "SO_MIN_TRANS_PROC_NSEC", 22) == 0) {
-                    configuration->SO_MIN_TRANS_PROC_NSEC = value;
-                } else if (strncmp(s, "SO_MAX_TRANS_PROC_NSEC", 22) == 0) {
-                    configuration->SO_MAX_TRANS_PROC_NSEC = value;
-                } else if (strncmp(s, "SO_BUDGET_INIT", 14) == 0) {
-                    configuration->SO_BUDGET_INIT = value;
-                } else if (strncmp(s, "SO_SIM_SEC", 10) == 0) {
-                    configuration->SO_SIM_SEC = value;
-                } else if (strncmp(s, "SO_FRIENDS_NUM", 14) == 0) {
-                    configuration->SO_FRIENDS_NUM = value;
-                }
-                i++;
-        }
-    }
-    if (i < 10) {
-        printf("Configuration not valid\n");
-        kill(0, SIGINT);
-    }
-
-    fclose(file);
 }
 
 int array_contains(int array[], int element) {
@@ -184,6 +122,7 @@ void print_block(block block) {
 
 void print_ledger(ledger *ledger) {
     int i;
+    printf("Printing ledger\n");
     for (i = 0; i < ledger_size; i++) {
         print_block(ledger->blocks[i]);
         printf("-----------------------------------------------------------------------------------------------------\n");
