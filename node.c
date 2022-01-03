@@ -199,11 +199,12 @@ int add_to_ledger(ledger *ledger, block block) {
     int added = 0;
     if (*ledger_size < SO_REGISTRY_SIZE) {
         (*ledger).blocks[*ledger_size] = block;
-        (*last_block_id)++;
         added = 1;
         balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
+        (*last_block_id)++;
         (*ledger_size)++;
-        printf("Ls = %d\n", *ledger_size);
+        printf("Ledger size = %d\n", *ledger_size);
+        printf("last_block_id = %d\n", *last_block_id);
     } else {
         kill(getppid(), SIGUSR2);
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);

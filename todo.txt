@@ -1,2 +1,3 @@
 Aggiungere semafori sulle strutture dati condivise per le info
+Aggiungere semaforo su lettura last_block_id in user e tutte le variabili condivise lette dall'utente
 Verificare incremento valori int shm con (*var)++

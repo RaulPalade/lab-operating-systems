@@ -116,7 +116,6 @@ int main(int argc, char *argv[]) {
         update_info(atoi(argv[1]));
     } */
 
-    update_info(atoi(argv[1]));
     /* if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0, 0) < 0) {
         add_to_processing_list(user_node_msg.t);
     } */
@@ -141,6 +140,8 @@ int main(int argc, char *argv[]) {
         interval.tv_nsec = random;
         nanosleep(&interval, NULL);
     }
+
+    update_info(atoi(argv[1]));
 
     return 0;
 }
@@ -312,5 +313,6 @@ void handler(int signal) {
 }
 
 void update_info(int index) {
+    printf("Last block id user = %d\n", *last_block_id);
     user_list[index].balance = calculate_balance();
 }
