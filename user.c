@@ -3,36 +3,38 @@
 
 configuration (*config);
 ledger (*master_ledger);
-transaction (*processing_transactions);
-transaction (*completed_transactions);
-
-user_information (*user_info);
-user_information (*node_info);
-
-static int balance = 0;
-static int next_block_to_check = 0;
-static int dying = 0;
-
-static int n_processing_transactions = 0;
-static int n_completed_transactions = 0;
-
+node_information (*node_list);
+user_information (*user_list);
 int *last_block_id;
 
-int id_shared_memory_ledger;
-int id_shared_memory_configuration;
-int id_shared_memory_users;
-int id_shared_memory_nodes;
-int id_shared_memory_last_block_id;
+/* SHARED MEMORY */
+int id_shm_configuration;
+int id_shm_ledger;
+int id_shm_node_list;
+int id_shm_user_list;
+int id_shm_last_block_id;
+int id_shm_ledger_size;
 
-int id_message_queue_master_user;
-int id_message_queue_node_user;
+/* MESSAGE QUEUE */
+int id_msg_node_user;
+int id_msg_user_node;
 
-int id_semaphore_init;
-int id_semaphore_writers;
-int id_semaphore_mutex;
+/* SEMAPHORE*/
+int id_sem_init;
+int id_sem_writers;
 
+/* MESSAGE DATA STRUCTURE */
 user_node_message user_node_msg;
 user_master_message user_master_msg;
+
+/* INTERNAL VARIABLES */
+transaction (*processing_transactions);
+transaction (*completed_transactions);
+int balance = 0;
+int next_block_to_check = 0;
+int dying = 0;
+int n_processing_transactions = 0;
+int n_completed_transactions = 0;
 
 /**
  * USER PROCESS
@@ -43,15 +45,12 @@ user_master_message user_master_msg;
  * 5) Send transaction
  */
 int main(int argc, char *argv[]) {
-    int i;
-    key_t key;
-    struct sigaction sa;
-    transaction transaction;
-    struct timespec interval;
     int lower;
     int upper;
     long random;
-    struct msqid_ds buf;
+    struct sigaction sa;
+    struct timespec interval;
+    transaction transaction;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
@@ -63,116 +62,24 @@ int main(int argc, char *argv[]) {
     sigaction(SIGUSR2, &sa, 0);
     sigaction(SIGTSTP, &sa, 0);
 
-    /* SHARED MEMORY CONNECTION */
-    if ((key = ftok("./makefile", 'a')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    /* SHARED MEMORY CREATION */
+    config = new_shared_memory(PROJ_ID_SHM_CONFIGURATION, id_shm_configuration, sizeof(config));
+    master_ledger = new_shared_memory(PROJ_ID_SHM_LEDGER, id_shm_ledger, sizeof(ledger));
+    node_list = new_shared_memory(PROJ_ID_SHM_NODE_LIST, id_shm_node_list,
+                                  sizeof(node_information) * config->SO_NODES_NUM);
+    user_list = new_shared_memory(PROJ_ID_SHM_USER_LIST, id_shm_user_list,
+                                  sizeof(user_information) * config->SO_USERS_NUM);
+    last_block_id = new_shared_memory(PROJ_ID_SHM_LAST_BLOCK_ID, id_shm_last_block_id, sizeof(last_block_id));
 
-    if ((id_shared_memory_ledger = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    /* MESSAGE QUEUE CREATION */
+    id_msg_node_user = new_message_queue(PROJ_ID_MSG_NODE_USER);
+    id_msg_user_node = new_message_queue(PROJ_ID_MSG_USER_NODE);
 
-    if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'x')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_configuration = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (config = shmat(id_shared_memory_configuration, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'y')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_last_block_id = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (last_block_id = shmat(id_shared_memory_last_block_id, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'z')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_users = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (user_info = shmat(id_shared_memory_users, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'w')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_nodes = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (node_info = shmat(id_shared_memory_nodes, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    /* MESSAGE QUEUE CONNECTION */
-    if ((key = ftok("./makefile", 'd')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_message_queue_master_user = msgget(key, 0666);
-
-    if ((key = ftok("./makefile", 'e')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_message_queue_node_user = msgget(key, 0666);
-
-    /* SEMAPHORE CONNECTION */
-    if ((key = ftok("./makefile", 'f')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_semaphore_init = semget(key, 0, 0666);
-
-    if ((key = ftok("./makefile", 'g')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_semaphore_writers = semget(key, 0, 0666);
-
-    if ((key = ftok("./makefile", 'h')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_semaphore_mutex = semget(key, 0, 0666);
+    /* SEMAPHORE CREATION */
+    id_sem_init = new_semaphore(PROJ_ID_SEM_INIT);
 
     balance = config->SO_BUDGET_INIT;
-    synchronize_resources(id_semaphore_init);
+    synchronize_resources(id_sem_init);
     /* while (1) {
         if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0, 0) < 0) {
             add_to_processing_list(user_node_msg.t);
@@ -219,9 +126,7 @@ int main(int argc, char *argv[]) {
         transaction = new_transaction();
         user_node_msg.mtype = get_random_node();
         user_node_msg.t = transaction;
-        print_table_header();
-        print_transaction(user_node_msg.t);
-        if ((msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
+        if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
             dying++;
             if (dying == config->SO_RETRY) {
                 update_info(atoi(argv[1]));
@@ -236,7 +141,8 @@ int main(int argc, char *argv[]) {
         interval.tv_nsec = random;
         nanosleep(&interval, NULL);
     }
-    
+
+    return 0;
 }
 
 transaction new_transaction() {
@@ -272,13 +178,11 @@ int calculate_balance() {
     for (i = next_block_to_check; i < *last_block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE; j++) {
             if ((*master_ledger).blocks[i].transactions[j].sender == getpid()) {
-                printf("no\n");
                 balance -= ((*master_ledger).blocks[i].transactions[j].amount +
                             (*master_ledger).blocks[i].transactions[j].reward);
             }
 
             if ((*master_ledger).blocks[i].transactions[j].receiver == getpid()) {
-                printf("yes\n");
                 balance += (*master_ledger).blocks[i].transactions[j].amount;
             }
 
@@ -312,16 +216,16 @@ pid_t get_random_user() {
     random = (rand() % (upper - lower)) + lower;
     nanosleep(&interval, NULL);
 
-    if (user_info[random].pid == getpid()) {
-        if(random == config->SO_USERS_NUM) {
+    if (user_list[random].pid == getpid()) {
+        if (random == config->SO_USERS_NUM) {
             random--;
         }
-        if(random == 0) {
+        if (random == 0) {
             random++;
         }
     }
 
-    return user_info[random].pid;
+    return user_list[random].pid;
 }
 
 pid_t get_random_node() {
@@ -334,7 +238,7 @@ pid_t get_random_node() {
     srand(tp.tv_sec);
     random = (rand() % (upper - lower)) + lower;
 
-    return node_info[random].pid;
+    return node_list[random].pid;
 }
 
 void remove_from_processing_list(int position) {
@@ -408,5 +312,5 @@ void handler(int signal) {
 }
 
 void update_info(int index) {
-    user_info[index].balance = calculate_balance();
+    user_list[index].balance = calculate_balance();
 }

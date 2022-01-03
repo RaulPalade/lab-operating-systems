@@ -3,44 +3,37 @@
 
 configuration (*config);
 ledger (*master_ledger);
+node_information (*node_list);
+user_information (*user_list);
+int *last_block_id;
+int *ledger_size;
 
-node_information (*node_info);
-user_information (*user_info);
+/* SHARED MEMORY */
+int id_shm_configuration;
+int id_shm_ledger;
+int id_shm_node_list;
+int id_shm_user_list;
+int id_shm_last_block_id;
+int id_shm_ledger_size;
 
-int *last_block_id;     /* Used to read by user till this block */
+/* MESSAGE QUEUE */
+int id_msg_node_user;
+int id_msg_user_node;
 
-int id_shared_memory_ledger;            /* Ledger */
-int id_shared_memory_configuration;     /* Configuration */
-int id_shared_memory_last_block_id;          /* Used to keep trace of block_id for next block and to read operations */
-int id_shared_memory_nodes;
-int id_shared_memory_users;
+/* SEMAPHORE*/
+int id_sem_init;
+int id_sem_writers;
 
-int id_message_queue_master_node;
-int id_message_queue_master_user;
-int id_message_queue_node_user;
-
-int id_semaphore_init;
-int id_semaphore_writers;
-int id_semaphore_mutex;
-
+/* SIMULATION RUNNING PARAMETERS */
 volatile int executing = 1;
 int ledger_full = 0;
-int dead_users = 0;
-
-static int active_nodes = 0;
-static int active_users = 0;
-
-typedef struct {
-    long mtype;
-    char letter;
-} chat_message;
-
+int active_users = 0;
 
 /**
  * MASTER PROCESS
  * 1) Acquire general semaphore to init resources
  * 2) Read configuration
- * 3) Init nodes => assign initial budget through args in execve
+ * 3) Init nodes => assign initial budget through args in execv
  * 4) Init users
  * 5) Release general semaphore 
  * 6) Print node and user budget each second
@@ -48,17 +41,12 @@ typedef struct {
  * 8) Print final report
  */
 int main() {
-    chat_message cm;
-    struct msqid_ds buf;
-    configuration c;
+    int i;
     int remaining_seconds;
     pid_t node_pid;
     pid_t user_pid;
-    int i;
-    key_t key;
     struct sigaction sa;
     union semun sem_arg;
-    struct semid_ds writers_ds;
     struct timespec interval;
     interval.tv_sec = 1;
     interval.tv_nsec = 0;
@@ -74,131 +62,35 @@ int main() {
     sigaction(SIGTSTP, &sa, 0);
 
     /* SHARED MEMORY CREATION */
-    if ((key = ftok("./makefile", 'a')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_ledger = shmget(key, SO_REGISTRY_SIZE * sizeof(block), IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'x')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_configuration = shmget(key, sizeof(configuration), IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (config = shmat(id_shared_memory_configuration, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    config = new_shared_memory(PROJ_ID_SHM_CONFIGURATION, id_shm_configuration, sizeof(config));
     *config = read_configuration();
-
-    if ((key = ftok("./makefile", 'y')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_last_block_id = shmget(key, sizeof(last_block_id), IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (last_block_id = shmat(id_shared_memory_last_block_id, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    master_ledger = new_shared_memory(PROJ_ID_SHM_LEDGER, id_shm_ledger, sizeof(ledger));
+    node_list = new_shared_memory(PROJ_ID_SHM_NODE_LIST, id_shm_node_list,
+                                  sizeof(node_information) * config->SO_NODES_NUM);
+    user_list = new_shared_memory(PROJ_ID_SHM_USER_LIST, id_shm_user_list,
+                                  sizeof(user_information) * config->SO_USERS_NUM);
+    last_block_id = new_shared_memory(PROJ_ID_SHM_LAST_BLOCK_ID, id_shm_last_block_id, sizeof(last_block_id));
     *last_block_id = 0;
+    ledger_size = new_shared_memory(PROJ_ID_SHM_LEDGER_SIZE, id_shm_ledger, sizeof(ledger_size));
+    *ledger_size = 0;
 
-
-    /* NODES AND USERS SHARED MEMORY TO STORE ID AND BALANCE */
-    if ((key = ftok("./makefile", 'w')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_nodes = shmget(key, config->SO_NODES_NUM, IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (node_info = shmat(id_shared_memory_nodes, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'z')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_users = shmget(key, config->SO_USERS_NUM, IPC_CREAT | 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (user_info = shmat(id_shared_memory_users, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    /* MESSAGE QUEUQ CREATION */
-    id_message_queue_master_node = new_msg_queue_id('c');
-    id_message_queue_master_user = new_msg_queue_id('d');
-    id_message_queue_node_user = new_msg_queue_id('e');
+    /* MESSAGE QUEUE CREATION */
+    id_msg_node_user = new_message_queue(PROJ_ID_MSG_NODE_USER);
+    id_msg_user_node = new_message_queue(PROJ_ID_MSG_USER_NODE);
 
     /* SEMAPHORE CREATION */
-    if ((key = ftok("./makefile", 'f')) < 0) {
-        raise(SIGQUIT);
-    }
-
-    if ((id_semaphore_init = semget(key, 1, IPC_CREAT | 0666)) < 0) {
-        raise(SIGQUIT);
-    }
-
-    /* INIZIALIZZAZIONE SEMAFORO A 1 PER LA CREAZIONE DELLE RISORSE */
+    id_sem_init = new_semaphore(PROJ_ID_SEM_INIT);
     sem_arg.val = 1;
-    if (semctl(id_semaphore_init, 0, SETVAL, sem_arg)) {
+    if (semctl(id_sem_init, 0, SETVAL, sem_arg)) {
         EXIT_ON_ERROR
     }
 
-    if ((key = ftok("./makefile", 'g')) < 0) {
-        raise(SIGQUIT);
-    }
-
-    if ((id_semaphore_writers = semget(key, 1, IPC_CREAT | 0666)) < 0) {
-        raise(SIGQUIT);
-    }
-
+    id_sem_writers = new_semaphore(PROJ_ID_SEM_WRITERS);
     sem_arg.val = 1;
-    if (semctl(id_semaphore_writers, 0, SETVAL, sem_arg)) {
+    if (semctl(id_sem_writers, 0, SETVAL, sem_arg)) {
         EXIT_ON_ERROR
     }
 
-    if ((key = ftok("./makefile", 'h')) < 0) {
-        raise(SIGQUIT);
-    }
-
-    if ((id_semaphore_mutex = semget(key, 1, IPC_CREAT | 0666)) < 0) {
-        raise(SIGQUIT);
-    }
-
-    sem_arg.val = 1;
-    if (semctl(id_semaphore_mutex, 0, SETVAL, sem_arg)) {
-        EXIT_ON_ERROR
-    }
-    
     printf("Launching Node processes\n");
     for (i = 0; i < (*config).SO_NODES_NUM; i++) {
         switch (node_pid = fork()) {
@@ -209,8 +101,7 @@ int main() {
                 execute_node(i);
 
             default:
-                active_nodes++;
-                node_info[i].pid = node_pid;
+                node_list[i].pid = node_pid;
         }
     }
 
@@ -225,14 +116,14 @@ int main() {
 
             default:
                 active_users++;
-                user_info[i].pid = user_pid;
+                user_list[i].pid = user_pid;
         }
     }
 
     printf("Starting timer right now\n");
     remaining_seconds = config->SO_SIM_SEC;
     alarm(config->SO_SIM_SEC);
-    unlock_init_semaphore(id_semaphore_init);
+    unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
         /* print_ledger(master_ledger); */
         print_node_info();
@@ -244,35 +135,36 @@ int main() {
     /* kill(0, SIGQUIT); */
     print_final_report();
     print_ledger(master_ledger);
-    
-    /* while (wait(NULL) > 0) {} */
 
-    /* for (i = 0; i < config->SO_USERS_NUM; i++) {
-        kill(user_info[i].pid, SIGKILL);
+    /*while (wait(NULL) > 0) {}
+
+    for (i = 0; i < config->SO_USERS_NUM; i++) {
+        kill(user_list[i].pid, SIGKILL);
     }
 
     for (i = 0; i < config->SO_NODES_NUM; i++) {
-        kill(node_info[i].pid, SIGKILL);
-    } */
+        kill(node_list[i].pid, SIGKILL);
+    }*/
 
-    shmdt(master_ledger);
     shmdt(config);
+    shmdt(master_ledger);
+    shmdt(node_list);
+    shmdt(user_list);
     shmdt(last_block_id);
-    shmdt(node_info);
-    shmdt(user_info);
-    shmctl(id_shared_memory_ledger, IPC_RMID, NULL);
-    shmctl(id_shared_memory_configuration, IPC_RMID, NULL);
-    shmctl(id_shared_memory_last_block_id, IPC_RMID, NULL);
-    shmctl(id_shared_memory_nodes, IPC_RMID, NULL);
-    shmctl(id_shared_memory_users, IPC_RMID, NULL);
+    shmdt(ledger_size);
 
-    msgctl(id_message_queue_master_node, IPC_RMID, NULL);
-    msgctl(id_message_queue_master_user, IPC_RMID, NULL);
-    msgctl(id_message_queue_node_user, IPC_RMID, NULL);
+    shmctl(id_shm_configuration, IPC_RMID, NULL);
+    shmctl(id_shm_ledger, IPC_RMID, NULL);
+    shmctl(id_shm_node_list, IPC_RMID, NULL);
+    shmctl(id_shm_user_list, IPC_RMID, NULL);
+    shmctl(id_shm_last_block_id, IPC_RMID, NULL);
+    shmctl(id_shm_ledger_size, IPC_RMID, NULL);
 
-    semctl(id_semaphore_init, 0, IPC_RMID);
-    semctl(id_semaphore_writers, 0, IPC_RMID);
-    semctl(id_semaphore_mutex, 0, IPC_RMID);
+    msgctl(id_msg_node_user, IPC_RMID, NULL);
+    msgctl(id_msg_user_node, IPC_RMID, NULL);
+
+    semctl(id_sem_init, 0, IPC_RMID);
+    semctl(id_sem_writers, 0, IPC_RMID);
 
     return 0;
 }
@@ -297,26 +189,10 @@ void execute_user(int index) {
     execv("user", argv);
 }
 
-int new_msg_queue_id(char proj_id) {
-    key_t key;
-    int id;
-
-    if ((key = ftok("./makefile", proj_id)) < 0) {
-        raise(SIGQUIT);
-    }
-
-    if ((id = msgget(key, IPC_CREAT | 0666)) < 0) {
-        raise(SIGQUIT);
-    }
-
-    return id;
-}
-
 void print_live_info() {
-    int i;
     printf("-----------------------------------------------------------------------------------------------------\n");
-    printf("%10s %10s\n", "ACTIVE NODES", "ACTIVE USERS");
-    printf("%10d %10d\n", active_nodes, active_users);
+    printf("%10s\n", "ACTIVE USERS");
+    printf("%10d\n", active_users);
     print_node_info();
     print_user_info();
 }
@@ -324,15 +200,15 @@ void print_live_info() {
 void print_node_info() {
     int i;
     for (i = 0; i < config->SO_NODES_NUM; i++) {
-        printf("Node PID=%d, Balance=%d, Transaction Left=%d\n", node_info[i].pid, node_info[i].balance,
-               node_info[i].transactions_left);
+        printf("Node PID=%d, Balance=%d, Transaction Left=%d\n", user_list[i].pid, node_list[i].balance,
+               node_list[i].transactions_left);
     }
 }
 
 void print_user_info() {
     int i;
     for (i = 0; i < config->SO_USERS_NUM; i++) {
-        printf("User PID=%d, Balance=%d\n", user_info[i].pid, user_info[i].balance);
+        printf("User PID=%d, Balance=%d\n", user_list[i].pid, user_list[i].balance);
     }
 }
 
@@ -347,6 +223,16 @@ void print_final_report() {
     printf("User processes dead = %d\n", config->SO_USERS_NUM - active_users);
     printf("Number of blocks in the ledger = %d\n", *last_block_id);
     printf("---------------------END---------------------\n");
+}
+
+void print_ledger(ledger *ledger) {
+    int i;
+    printf("Printing ledger\n");
+    for (i = 0; i < *ledger_size; i++) {
+        print_block(ledger->blocks[i]);
+        printf("-----------------------------------------------------------------------------------------------------\n");
+    }
+    printf("-----------------------------------------------------------------------------------------------------\n");
 }
 
 configuration read_configuration() {
@@ -395,7 +281,6 @@ configuration read_configuration() {
                         config.SO_MAX_TRANS_PROC_NSEC = value;
                     } else if (strncmp(s, "SO_BUDGET_INIT", 14) == 0) {
                         config.SO_BUDGET_INIT = value;
-                        printf("budget init = %d\n", config.SO_BUDGET_INIT);
                     } else if (strncmp(s, "SO_SIM_SEC", 10) == 0) {
                         config.SO_SIM_SEC = value;
                     } else if (strncmp(s, "SO_FRIENDS_NUM", 14) == 0) {
@@ -432,24 +317,25 @@ void handler(int signal) {
         case SIGINT:
             printf("Master received SIGINT\n");
             print_final_report();
-            shmdt(master_ledger);
             shmdt(config);
+            shmdt(master_ledger);
+            shmdt(node_list);
+            shmdt(user_list);
             shmdt(last_block_id);
-            shmdt(node_info);
-            shmdt(user_info);
-            shmctl(id_shared_memory_ledger, IPC_RMID, NULL);
-            shmctl(id_shared_memory_configuration, IPC_RMID, NULL);
-            shmctl(id_shared_memory_last_block_id, IPC_RMID, NULL);
-            shmctl(id_shared_memory_nodes, IPC_RMID, NULL);
-            shmctl(id_shared_memory_users, IPC_RMID, NULL);
+            shmdt(ledger_size);
 
-            msgctl(id_message_queue_master_node, IPC_RMID, NULL);
-            msgctl(id_message_queue_master_user, IPC_RMID, NULL);
-            msgctl(id_message_queue_node_user, IPC_RMID, NULL);
+            shmctl(id_shm_configuration, IPC_RMID, NULL);
+            shmctl(id_shm_ledger, IPC_RMID, NULL);
+            shmctl(id_shm_node_list, IPC_RMID, NULL);
+            shmctl(id_shm_user_list, IPC_RMID, NULL);
+            shmctl(id_shm_last_block_id, IPC_RMID, NULL);
+            shmctl(id_shm_ledger_size, IPC_RMID, NULL);
 
-            semctl(id_semaphore_init, 0, IPC_RMID);
-            semctl(id_semaphore_writers, 0, IPC_RMID);
-            semctl(id_semaphore_mutex, 0, IPC_RMID);
+            msgctl(id_msg_node_user, IPC_RMID, NULL);
+            msgctl(id_msg_user_node, IPC_RMID, NULL);
+
+            semctl(id_sem_init, 0, IPC_RMID);
+            semctl(id_sem_writers, 0, IPC_RMID);
             exit(0);
 
         case SIGUSR1:
@@ -461,7 +347,7 @@ void handler(int signal) {
             printf("Master received SIGUSR2\n");
             ledger_full = 1;
             break;
-        
+
         default:
             break;
     }

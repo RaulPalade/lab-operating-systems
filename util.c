@@ -1,10 +1,6 @@
 #include "util.h"
 
 /* Ledger size must be managed in shared memory in order to use print function */
-static int ledger_size = 1;
-static int transaction_pool_size = 0;
-static int block_id = 0;
-static int next_block_to_check = 0;
 
 /* For writers and also for readers when readers == 1 */
 void acquire_resource(int semaphore, int id_block) {
@@ -121,16 +117,6 @@ void print_block(block block) {
     }
 }
 
-void print_ledger(ledger *ledger) {
-    int i;
-    printf("Printing ledger\n");
-    for (i = 0; i < ledger_size; i++) {
-        print_block(ledger->blocks[i]);
-        printf("-----------------------------------------------------------------------------------------------------\n");
-    }
-    printf("-----------------------------------------------------------------------------------------------------\n");
-}
-
 void print_all_transactions(transaction *transactions) {
     int i;
     print_table_header();
@@ -144,4 +130,50 @@ void print_table_header() {
     printf("-----------------------------------------------------------------------------------------------------\n");
     printf("%15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD");
     printf("-----------------------------------------------------------------------------------------------------\n");
+}
+
+void *new_shared_memory(char proj_id, int id_shm, size_t size) {
+    key_t key;
+    void *shared_memory;
+    if ((key = ftok("./makefile", proj_id)) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+    if ((id_shm = shmget(key, size, IPC_CREAT | 0666)) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+    if ((void *) (shared_memory = shmat(id_shm, NULL, 0)) < (void *) 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+    return shared_memory;
+}
+
+int new_message_queue(char proj_id) {
+    key_t key;
+    int id;
+    if ((key = ftok("./makefile", proj_id)) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+    if ((id = msgget(key, IPC_CREAT | 0666)) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+    return id;
+}
+
+int new_semaphore(char proj_id) {
+    key_t key;
+    int id;
+    if ((key = ftok("./makefile", proj_id)) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+    if ((id = semget(key, 1, IPC_CREAT | 0666)) < 0) {
+        EXIT_ON_ERROR
+        raise(SIGQUIT);
+    }
+    return id;
 }

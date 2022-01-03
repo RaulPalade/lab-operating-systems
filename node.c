@@ -3,34 +3,32 @@
 
 configuration (*config);
 ledger (*master_ledger);
-transaction_pool pool;
-
-node_information (*node_info);
-
-static int ledger_size = 0;
-static int transaction_pool_size = 0;
-static int balance = 0;
-static int next_block_to_check = 0;
-
-int *readers;
+node_information (*node_list);
+user_information (*user_list);
 int *last_block_id;
+int *ledger_size;
 
-int id_shared_memory_ledger;
-int id_shared_memory_configuration;
-int id_shared_memory_readers;
-int id_shared_memory_last_block_id;
+/* SHARED MEMORY */
+int id_shm_configuration;
+int id_shm_ledger;
+int id_shm_node_list;
+int id_shm_last_block_id;
+int id_shm_ledger_size;
 
-int id_shared_memory_nodes;
+/* MESSAGE QUEUE */
+int id_msg_node_user;
+int id_msg_user_node;
 
-int id_message_queue_master_node;
-int id_message_queue_node_user;
+/* SEMAPHORE*/
+int id_sem_init;
+int id_sem_writers;
 
-int id_semaphore_init;
-int id_semaphore_writers;
-int id_semaphore_mutex;
+transaction_pool pool;
+int transaction_pool_size = 0;
+int balance = 0;
+int next_block_to_check = 0;
 
 user_node_message user_node_msg;
-node_master_message node_master_msg;
 struct timeval timer;
 
 /**
@@ -48,9 +46,7 @@ int main(int argc, char *argv[]) {
     int success;
     transaction *transactions;
     block block;
-    key_t key;
     struct sigaction sa;
-    struct msqid_ds buf;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
@@ -62,103 +58,27 @@ int main(int argc, char *argv[]) {
     sigaction(SIGUSR2, &sa, 0);
     sigaction(SIGTSTP, &sa, 0);
 
-    /* SHARED MEMORY CONNECTION */
-    if ((key = ftok("./makefile", 'a')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    /* SHARED MEMORY CREATION */
+    config = new_shared_memory(PROJ_ID_SHM_CONFIGURATION, id_shm_configuration, sizeof(config));
+    master_ledger = new_shared_memory(PROJ_ID_SHM_LEDGER, id_shm_ledger, sizeof(ledger));
+    node_list = new_shared_memory(PROJ_ID_SHM_NODE_LIST, id_shm_node_list,
+                                  sizeof(node_information) * config->SO_NODES_NUM);
+    last_block_id = new_shared_memory(PROJ_ID_SHM_LAST_BLOCK_ID, id_shm_last_block_id, sizeof(last_block_id));
+    ledger_size = new_shared_memory(PROJ_ID_SHM_LEDGER_SIZE, id_shm_ledger, sizeof(ledger_size));
 
-    if ((id_shared_memory_ledger = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    /* MESSAGE QUEUE CREATION */
+    id_msg_node_user = new_message_queue(PROJ_ID_MSG_NODE_USER);
+    id_msg_user_node = new_message_queue(PROJ_ID_MSG_USER_NODE);
 
-    if ((void *) (master_ledger = shmat(id_shared_memory_ledger, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'x')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_configuration = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (config = shmat(id_shared_memory_configuration, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    /* SEMAPHORE CREATION */
+    id_sem_init = new_semaphore(PROJ_ID_SEM_INIT);
+    id_sem_writers = new_semaphore(PROJ_ID_SEM_WRITERS);
 
     pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transactions));
 
-    if ((key = ftok("./makefile", 'y')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
+    printf("Ledger size = %d\n", *ledger_size);
+    synchronize_resources(id_sem_init);
 
-    if ((id_shared_memory_last_block_id = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (last_block_id = shmat(id_shared_memory_last_block_id, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((key = ftok("./makefile", 'w')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((id_shared_memory_nodes = shmget(key, 0, 0666)) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    if ((void *) (node_info = shmat(id_shared_memory_nodes, NULL, 0)) < (void *) 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-
-    /* MESSAGE QUEUE CONNECTION */
-    if ((key = ftok("./makefile", 'c')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_message_queue_master_node = msgget(key, 0666);
-
-    if ((key = ftok("./makefile", 'e')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_message_queue_node_user = msgget(key, 0666);
-
-    /* SEMAPHORE CONNECTION */
-    if ((key = ftok("./makefile", 'f')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_semaphore_init = semget(key, 0, 0666);
-
-    if ((key = ftok("./makefile", 'g')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_semaphore_writers = semget(key, 0, 0666);
-
-    if ((key = ftok("./makefile", 'h')) < 0) {
-        EXIT_ON_ERROR
-        raise(SIGQUIT);
-    }
-    id_semaphore_mutex = semget(key, 0, 0666);
-
-    synchronize_resources(id_semaphore_init);
-    
     /* while (1) {
         if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), 0, 0) < 0) {
             success = add_to_transaction_pool(user_node_msg.t);
@@ -182,49 +102,45 @@ int main(int argc, char *argv[]) {
             }
         }
         update_info(atoi(argv[1]));
-    } */    
+    } */
 
-    msgctl(id_message_queue_node_user, IPC_STAT, &buf);
-    printf("Node[%d] found %ld messages in queue\n", getpid(), buf.msg_qnum);
     /* msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
     print_transaction(user_node_msg.t);
 
      msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
     print_transaction(user_node_msg.t); */
-    
-    msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+    msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
     success = add_to_transaction_pool(user_node_msg.t);
-    msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+    msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
     success = add_to_transaction_pool(user_node_msg.t);
-    print_transaction_pool();
-    /* if (!success) {
+/*     if (!success) {
         user_node_msg.mtype = 2;
         msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 1);
-    } */
+    }*/
 
     if (transaction_pool_size >= SO_BLOCK_SIZE) {
         printf("transaction_pool_size >= SO_BLOCK_SIZE\n");
         transactions = extract_transactions_block_from_pool();
         block = new_block(transactions);
 
-        printf("Semaphore value before acquire = %d\n", semctl(id_semaphore_writers, 0, GETVAL));
-        acquire_resource(id_semaphore_writers, *last_block_id);
+        acquire_resource(id_sem_writers, *last_block_id);
         success = add_to_ledger(master_ledger, block);
-        release_resource(id_semaphore_writers, *last_block_id);
-        printf("Semaphore value before acquire = %d\n", semctl(id_semaphore_writers, 0, GETVAL));
+        release_resource(id_sem_writers, *last_block_id);
         if (success) {
             for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
                 remove_from_transaction_pool(transactions[i]);
             }
+        } else {
+            printf("Failure\n");
         }
     } else {
         printf("transaction_pool_size < SO_BLOCK_SIZE\n");
     }
 
-    print_ledger(master_ledger);
-
-    /* print_ledger(master_ledger); */
+    printf("Ledger size = %d\n", *ledger_size);
     update_info(atoi(argv[1]));
+
+    return 0;
 }
 
 int add_to_transaction_pool(transaction t) {
@@ -266,7 +182,7 @@ int ledger_has_transaction(ledger *ledger, transaction t) {
     int i;
     int j;
 
-    for (i = 0; i < ledger_size && !found; i++) {
+    for (i = 0; i < *ledger_size && !found; i++) {
         for (j = 0; j < SO_BLOCK_SIZE; j++) {
             if ((*ledger).blocks[i].transactions[j].timestamp == t.timestamp &&
                 (*ledger).blocks[i].transactions[j].sender == t.sender) {
@@ -279,26 +195,22 @@ int ledger_has_transaction(ledger *ledger, transaction t) {
     return found;
 }
 
-int add_to_ledger(ledger *ledger, block block) {  
+int add_to_ledger(ledger *ledger, block block) {
     int added = 0;
-    printf("Semaphore value in = %d\n", semctl(id_semaphore_writers, 0, GETVAL));
-    print_block(block);
-    printf("Ledger size = %d\n", ledger_size);
-    if (ledger_size < SO_REGISTRY_SIZE) {
-        (*ledger).blocks[ledger_size] = block;
-        ledger_size++;
-        last_block_id++;
+    if (*ledger_size < SO_REGISTRY_SIZE) {
+        (*ledger).blocks[*ledger_size] = block;
+        (*last_block_id)++;
         added = 1;
+        balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
+        (*ledger_size)++;
+        printf("Ls = %d\n", *ledger_size);
     } else {
-        printf("Ledger size = %d\n", ledger_size);
         kill(getppid(), SIGUSR2);
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
-    printf("Ledger size = %d\n", ledger_size);
     print_transaction(master_ledger->blocks[0].transactions[0]);
     print_transaction(master_ledger->blocks[0].transactions[1]);
-
 
     return added;
 }
@@ -325,14 +237,7 @@ block new_block(transaction transactions[]) {
         block.transactions[i] = transactions[i];
         total_reward += transactions[i].reward;
     }
-
     block.transactions[SO_BLOCK_SIZE - 1] = new_reward_transaction(total_reward);
-    balance += total_reward;
-
-    printf("\nnewBlock function\n");
-    print_transaction(block.transactions[0]);
-    print_transaction(block.transactions[1]);
-
     nanosleep(&interval, NULL);
 
     return block;
@@ -392,7 +297,7 @@ void reset_transaction_pool() {
 
 void reset_ledger() {
     memset(master_ledger->blocks, 0, sizeof(master_ledger->blocks));
-    ledger_size = 0;
+    *ledger_size = 0;
     next_block_to_check = 0;
 }
 
@@ -404,6 +309,6 @@ void handler(int signal) {
 }
 
 void update_info(int index) {
-    node_info[index].balance = balance;
-    node_info[index].transactions_left = transaction_pool_size;
+    node_list[index].balance = balance;
+    node_list[index].transactions_left = transaction_pool_size;
 }

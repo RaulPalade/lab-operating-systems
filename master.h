@@ -9,7 +9,7 @@ void execute_user(int);
 
 void handler(int);
 
-int new_msg_queue_id(char);
+void print_ledger(ledger *);
 
 void print_live_info();
 

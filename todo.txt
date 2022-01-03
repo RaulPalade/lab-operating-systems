@@ -1,1 +1,2 @@
-change proj_id for msgqueue
+Aggiungere semafori sulle strutture dati condivise per le info
+Verificare incremento valori int shm con (*var)++

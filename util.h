@@ -30,6 +30,19 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
+#define PROJ_ID_SHM_CONFIGURATION 'a'
+#define PROJ_ID_SHM_LEDGER 'b'
+#define PROJ_ID_SHM_NODE_LIST 'c'
+#define PROJ_ID_SHM_USER_LIST 'd'
+#define PROJ_ID_SHM_LAST_BLOCK_ID 'e'
+#define PROJ_ID_SHM_LEDGER_SIZE 'f'
+
+#define PROJ_ID_MSG_NODE_USER 'g'
+#define PROJ_ID_MSG_USER_NODE 'h'
+
+#define PROJ_ID_SEM_INIT 'i'
+#define PROJ_ID_SEM_WRITERS 'l'
+
 #define EXIT_ON_ERROR                                                                                           \
     if (errno) {                                                                                                \
         fprintf(stderr, "File %s %d: pid %ld; errno: %d (%s)\n", __FILE__, __LINE__, (long)getpid(), errno, strerror(errno));     \
@@ -184,10 +197,14 @@ void print_transaction(transaction);
 
 void print_block(block);
 
-void print_ledger(ledger *);
-
 void print_all_transactions(transaction *);
 
 void print_table_header();
+
+void *new_shared_memory(char, int, size_t);
+
+int new_message_queue(char);
+
+int new_semaphore(char);
 
 #endif
