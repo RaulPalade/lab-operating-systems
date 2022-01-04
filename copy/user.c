@@ -66,19 +66,19 @@ int main(int argc, char *argv[]) {
     config = shmat(id_shm_configuration, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_ledger = atoi(argv[3]);
+            id_shm_ledger = atoi(argv[3]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_node_list = atoi(argv[4]);
+            id_shm_node_list = atoi(argv[4]);
     node_list = shmat(id_shm_node_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_user_list = atoi(argv[5]);
-    user_list = shmat(id_shm_user_list, NULL, 0);
+            id_shm_user_list = atoi(argv[5]);
+    node_list = shmat(id_shm_user_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_last_block_id = atoi(argv[6]);
+            id_shm_last_block_id = atoi(argv[6]);
     last_block_id = shmat(id_shm_last_block_id, NULL, 0);
     EXIT_ON_ERROR
 
@@ -135,10 +135,8 @@ int main(int argc, char *argv[]) {
     calculate_balance();
     if (balance >= 2) {
         transaction = new_transaction();
-        print_transaction(transaction);
         user_node_msg.mtype = get_random_node();
         user_node_msg.t = transaction;
-        print_transaction(user_node_msg.t);
         if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
             dying++;
             if (dying == config->SO_RETRY) {
@@ -153,8 +151,6 @@ int main(int argc, char *argv[]) {
         interval.tv_sec = 0;
         interval.tv_nsec = random;
         nanosleep(&interval, NULL);
-    } else {
-        printf("balance < 2\n");
     }
 
     update_info();
@@ -180,7 +176,7 @@ transaction new_transaction() {
     clock_gettime(CLOCK_REALTIME, &tp);
     transaction.timestamp = tp.tv_sec;
     transaction.sender = getpid();
-    transaction.receiver = get_random_user(); /*ERRORE QUI*/
+    transaction.receiver = get_random_user();
     transaction.amount = toUser;
     transaction.reward = toNode;
 
@@ -233,7 +229,6 @@ pid_t get_random_user() {
     random = (rand() % (upper - lower)) + lower;
     nanosleep(&interval, NULL);
 
-    /*ERRORE QUI*/
     if (user_list[random].pid == getpid()) {
         if (random == config->SO_USERS_NUM - 1) {
             random--;

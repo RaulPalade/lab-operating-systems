@@ -39,7 +39,7 @@ int final_total_funds;
  * 2) Read configuration
  * 3) Init nodes => assign initial budget through args in execv
  * 4) Init users
- * 5) Release general semaphore 
+ * 5) Release general semaphore
  * 6) Print node and user budget each second
  * 7) Stop all nodes and users at the end of the simulation
  * 8) Print final report
@@ -82,71 +82,72 @@ int main() {
     /* SHARED MEMORY CREATION */
     key = ftok("./makefile", PROJ_ID_SHM_CONFIGURATION);
     EXIT_ON_ERROR
-    id_shm_configuration = shmget(key, sizeof(configuration), IPC_CREAT | 0666);
+            id_shm_configuration = shmget(key, sizeof(configuration), IPC_CREAT | 0666);
+    printf("id_shm_configuration = %d\n", id_shm_configuration);
     EXIT_ON_ERROR
-    config = shmat(id_shm_configuration, NULL, 0);
+            config = shmat(id_shm_configuration, NULL, 0);
     EXIT_ON_ERROR
-    *config = read_configuration();
+            *config = read_configuration();
 
     key = ftok("./makefile", PROJ_ID_SHM_LEDGER);
     EXIT_ON_ERROR
-    id_shm_ledger = shmget(key, sizeof(master_ledger), IPC_CREAT | 0666);
+            id_shm_ledger = shmget(key, sizeof(master_ledger), IPC_CREAT | 0666);
     EXIT_ON_ERROR
-    master_ledger = shmat(id_shm_ledger, NULL, 0);
-    EXIT_ON_ERROR
-
-    key = ftok("./makefile", PROJ_ID_SHM_NODE_LIST);
-    EXIT_ON_ERROR
-    id_shm_node_list = shmget(key, sizeof(node_information) * config->SO_NODES_NUM, IPC_CREAT | 0666);
-    EXIT_ON_ERROR
-    node_list = shmat(id_shm_node_list, NULL, 0);
+            master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    key = ftok("./makefile", PROJ_ID_SHM_USER_LIST);
+            key = ftok("./makefile", PROJ_ID_SHM_NODE_LIST);
     EXIT_ON_ERROR
-    id_shm_user_list = shmget(key, sizeof(user_information) * config->SO_USERS_NUM, IPC_CREAT | 0666);
+            id_shm_node_list = shmget(key, sizeof(node_information) * config->SO_NODES_NUM, IPC_CREAT | 0666);
     EXIT_ON_ERROR
-    user_list = shmat(id_shm_user_list, NULL, 0);
+            node_list = shmat(id_shm_node_list, NULL, 0);
     EXIT_ON_ERROR
 
-    key = ftok("./makefile", PROJ_ID_SHM_LAST_BLOCK_ID);
+            key = ftok("./makefile", PROJ_ID_SHM_USER_LIST);
     EXIT_ON_ERROR
-    id_shm_last_block_id = shmget(key, sizeof(last_block_id), IPC_CREAT | 0666);
+            id_shm_user_list = shmget(key, sizeof(user_information) * config->SO_USERS_NUM, IPC_CREAT | 0666);
     EXIT_ON_ERROR
-    last_block_id = shmat(id_shm_last_block_id, NULL, 0);
+            user_list = shmat(id_shm_user_list, NULL, 0);
     EXIT_ON_ERROR
-    *last_block_id = 0;
+
+            key = ftok("./makefile", PROJ_ID_SHM_LAST_BLOCK_ID);
+    EXIT_ON_ERROR
+            id_shm_last_block_id = shmget(key, sizeof(last_block_id), IPC_CREAT | 0666);
+    EXIT_ON_ERROR
+            last_block_id = shmat(id_shm_last_block_id, NULL, 0);
+    EXIT_ON_ERROR
+            *last_block_id = 0;
 
     key = ftok("./makefile", PROJ_ID_SHM_LEDGER_SIZE);
     EXIT_ON_ERROR
-    id_shm_ledger_size = shmget(key, sizeof(ledger_size), IPC_CREAT | 0666);
+            id_shm_ledger_size = shmget(key, sizeof(ledger_size), IPC_CREAT | 0666);
     EXIT_ON_ERROR
-    ledger_size = shmat(id_shm_ledger_size, NULL, 0);
+            ledger_size = shmat(id_shm_ledger_size, NULL, 0);
     EXIT_ON_ERROR
-    *ledger_size = 0;
+            *ledger_size = 0;
 
     /* MESSAGE QUEUE CREATION */
     key = ftok("./makefile", PROJ_ID_MSG_NODE_USER);
     EXIT_ON_ERROR
-    id_msg_node_user = msgget(key, IPC_CREAT | 0666);
+            id_msg_node_user = msgget(key, IPC_CREAT | 0666);
     EXIT_ON_ERROR
 
-    key = ftok("./makefile", PROJ_ID_MSG_USER_NODE);
+            key = ftok("./makefile", PROJ_ID_MSG_USER_NODE);
     EXIT_ON_ERROR
-    id_msg_user_node = msgget(key, IPC_CREAT | 0666);
+            id_msg_user_node = msgget(key, IPC_CREAT | 0666);
     EXIT_ON_ERROR
 
     /* SEMAPHORE CREATION */
     key = ftok("./makefile", PROJ_ID_SEM_INIT);
     EXIT_ON_ERROR
-    id_sem_init = semget(key, 1, IPC_CREAT | 0666);
+            id_sem_init = semget(key, 1, IPC_CREAT | 0666);
     EXIT_ON_ERROR
     sem_arg.val = 1;
     semctl(id_sem_init, 0, SETVAL, sem_arg);
 
     key = ftok("./makefile", PROJ_ID_SEM_WRITERS);
     EXIT_ON_ERROR
-    id_sem_writers = semget(key, 1, IPC_CREAT | 0666);
+            id_sem_writers = semget(key, 1, IPC_CREAT | 0666);
     EXIT_ON_ERROR
     sem_arg.val = 1;
     semctl(id_sem_writers, 0, SETVAL, sem_arg);
@@ -234,7 +235,7 @@ int main() {
         nanosleep(&interval, NULL);
     }
 
-    /* kill(0, SIGQUIT); */
+/* kill(0, SIGQUIT); */
     print_final_report();
     print_ledger(master_ledger);
 

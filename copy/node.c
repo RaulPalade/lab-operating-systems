@@ -62,19 +62,19 @@ int main(int argc, char *argv[]) {
     config = shmat(id_shm_configuration, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_ledger = atoi(argv[3]);
+            id_shm_ledger = atoi(argv[3]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_node_list = atoi(argv[4]);
+            id_shm_node_list = atoi(argv[4]);
     node_list = shmat(id_shm_node_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_last_block_id = atoi(argv[5]);
+            id_shm_last_block_id = atoi(argv[5]);
     last_block_id = shmat(id_shm_last_block_id, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_ledger_size = atoi(argv[6]);
+            id_shm_ledger_size = atoi(argv[6]);
     ledger_size = shmat(id_shm_ledger_size, NULL, 0);
 
     /* MESSAGE QUEUE ATTACHING */
@@ -163,7 +163,9 @@ int add_to_transaction_pool(transaction t) {
         transaction_pool_size++;
         added = 1;
     } else {
-        printf(ANSI_COLOR_RED "Transaction pool size exceeded\n" ANSI_COLOR_RESET);
+        printf(ANSI_COLOR_RED
+        "Transaction pool size exceeded\n"
+        ANSI_COLOR_RESET);
     }
 
     return added;
@@ -220,7 +222,9 @@ int add_to_ledger(ledger *ledger, block block) {
         printf("last_block_id = %d\n", *last_block_id);
     } else {
         kill(getppid(), SIGUSR2);
-        printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
+        printf(ANSI_COLOR_RED
+        "Ledger size exceeded\n"
+        ANSI_COLOR_RESET);
     }
 
     print_transaction(master_ledger->blocks[0].transactions[0]);
@@ -283,14 +287,13 @@ transaction *extract_transactions_block_from_pool() {
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_sec);
     printf("Here 2\n");
-    exit(0);
+
     while (added < SO_BLOCK_SIZE - 1) {
         random = (rand() % (upper - lower)) + lower;
         printf("random = %d\n", random);
         if (!array_contains(transactions, pool.transactions[random])) {
             transactions[added] = pool.transactions[random];
             added++;
-            printf("Added");
         }
     }
 

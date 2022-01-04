@@ -20,4 +20,4 @@ void print_completed_list();
 
 void handler(int);
 
-void update_info(int);
+void update_info();

@@ -24,10 +24,10 @@ transaction *extract_transactions_block_from_pool();
 
 void print_transaction_pool();
 
-void reset_transaction_pool();
-
 void reset_ledger();
 
 void handler(int);
 
-void update_info(int);
+void update_info();
+
+void clean_transaction_pool();

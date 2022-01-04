@@ -17,8 +17,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <assert.h>
 
-#define SO_BLOCK_SIZE 2
+#define SO_BLOCK_SIZE 3
 #define SO_REGISTRY_SIZE 2
 #define SENDER_TRANSACTION_REWARD -1
 
@@ -189,7 +190,7 @@ void synchronize_resources(int);
 
 int equal_transaction(transaction, transaction);
 
-int array_contains(int [], int);
+int array_contains(transaction *, transaction);
 
 void print_configuration(configuration);
 

@@ -3,9 +3,8 @@
 
 #include "util.h"
 
-void execute_node(int);
-
-void execute_user(int);
+#define NODE "node"
+#define USER "user"
 
 void handler(int);
 
@@ -23,5 +22,7 @@ void print_final_report();
  * Read the initial configuration from file
  */
 configuration read_configuration();
+
+void cleanIPC();
 
 #endif

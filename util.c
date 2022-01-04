@@ -74,11 +74,11 @@ void synchronize_resources(int semaphore) {
     }
 }
 
-int array_contains(int array[], int element) {
+int array_contains(transaction *transactions, transaction t) {
     int contains = 0;
     int i;
-    for (i = 0; i < SO_BLOCK_SIZE && !contains; i++) {
-        if (array[i] == element) {
+    for (i = 0; i < SO_BLOCK_SIZE - 1 && !contains; i++) {
+        if (equal_transaction(transactions[i], t)) {
             contains = 1;
         }
     }
