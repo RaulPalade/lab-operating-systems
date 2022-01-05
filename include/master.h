@@ -6,8 +6,6 @@
 #define NODE "node"
 #define USER "user"
 
-void handler(int);
-
 void print_ledger(ledger *);
 
 void print_live_info();
@@ -18,11 +16,10 @@ void print_user_info();
 
 void print_final_report();
 
-/**
- * Read the initial configuration from file
- */
 configuration read_configuration();
 
 void cleanIPC();
+
+void handler(int);
 
 #endif

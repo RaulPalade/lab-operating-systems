@@ -1,5 +1,5 @@
-#include "util.h"
-#include "user.h"
+#include "../include/util.h"
+#include "../include/user.h"
 
 configuration (*config);
 ledger (*master_ledger);
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
     id_sem_writers = atoi(argv[10]);
 
     balance = config->SO_BUDGET_INIT;
-    synchronize_resources(id_sem_init);
+    wait_for_master(id_sem_init);
     /* while (1) {
         if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0, 0) < 0) {
             add_to_processing_list(user_node_msg.t);
@@ -162,31 +162,6 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-transaction new_transaction() {
-    transaction transaction;
-    int toNode;
-    int toUser;
-    int random;
-    int lower = 2;
-    int upper = balance;
-    struct timespec tp;
-
-    clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_sec);
-    random = (rand() % (upper - lower + 1)) + lower;
-    toNode = (random * 20) / 100;
-    toUser = random - toNode;
-
-    clock_gettime(CLOCK_REALTIME, &tp);
-    transaction.timestamp = tp.tv_sec;
-    transaction.sender = getpid();
-    transaction.receiver = get_random_user(); /*ERRORE QUI*/
-    transaction.amount = toUser;
-    transaction.reward = toNode;
-
-    return transaction;
-}
-
 int calculate_balance() {
     int i;
     int j;
@@ -218,6 +193,52 @@ int calculate_balance() {
     }
 
     return balance;
+}
+
+transaction new_transaction() {
+    transaction transaction;
+    int toNode;
+    int toUser;
+    int random;
+    int lower = 2;
+    int upper = balance;
+    struct timespec tp;
+
+    clock_gettime(CLOCK_REALTIME, &tp);
+    srand(tp.tv_sec);
+    random = (rand() % (upper - lower + 1)) + lower;
+    toNode = (random * 20) / 100;
+    toUser = random - toNode;
+
+    clock_gettime(CLOCK_REALTIME, &tp);
+    transaction.timestamp = tp.tv_sec;
+    transaction.sender = getpid();
+    transaction.receiver = get_random_user(); /*ERRORE QUI*/
+    transaction.amount = toUser;
+    transaction.reward = toNode;
+
+    return transaction;
+}
+
+void add_to_processing_list(transaction t) {
+    processing_transactions = realloc(processing_transactions, (n_processing_transactions + 1) * sizeof(transaction));
+    processing_transactions[n_processing_transactions] = t;
+    n_processing_transactions++;
+}
+
+void remove_from_processing_list(int position) {
+    int i;
+    for (i = position; i < n_processing_transactions; i++) {
+        processing_transactions[i] = processing_transactions[i + 1];
+    }
+    n_processing_transactions--;
+    processing_transactions = realloc(processing_transactions, (n_processing_transactions) * sizeof(transaction));
+}
+
+void add_to_completed_list(transaction t) {
+    completed_transactions = realloc(completed_transactions, (n_completed_transactions + 1) * sizeof(transaction));
+    completed_transactions[n_completed_transactions] = t;
+    n_completed_transactions++;
 }
 
 pid_t get_random_user() {
@@ -258,27 +279,6 @@ pid_t get_random_node() {
     return node_list[random].pid;
 }
 
-void remove_from_processing_list(int position) {
-    int i;
-    for (i = position; i < n_processing_transactions; i++) {
-        processing_transactions[i] = processing_transactions[i + 1];
-    }
-    n_processing_transactions--;
-    processing_transactions = realloc(processing_transactions, (n_processing_transactions) * sizeof(transaction));
-}
-
-void add_to_processing_list(transaction t) {
-    processing_transactions = realloc(processing_transactions, (n_processing_transactions + 1) * sizeof(transaction));
-    processing_transactions[n_processing_transactions] = t;
-    n_processing_transactions++;
-}
-
-void add_to_completed_list(transaction t) {
-    completed_transactions = realloc(completed_transactions, (n_completed_transactions + 1) * sizeof(transaction));
-    completed_transactions[n_completed_transactions] = t;
-    n_completed_transactions++;
-}
-
 void print_processing_list() {
     int i;
     print_table_header();
@@ -293,6 +293,11 @@ void print_completed_list() {
     for (i = 0; i < n_completed_transactions; i++) {
         print_transaction(completed_transactions[i]);
     }
+}
+
+void update_info() {
+    printf("Last block id user = %d\n", *last_block_id);
+    user_list[user_index].balance = calculate_balance();
 }
 
 void handler(int signal) {
@@ -315,9 +320,4 @@ void handler(int signal) {
         default:
             break;
     }
-}
-
-void update_info() {
-    printf("Last block id user = %d\n", *last_block_id);
-    user_list[user_index].balance = calculate_balance();
 }

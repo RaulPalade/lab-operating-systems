@@ -1,6 +1,5 @@
 #ifndef __UTIL_H_
 #define __UTIL_H_
-#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -186,7 +185,7 @@ void unlock_init_semaphore(int);
  * Node and user processes wait for 0 to begin the
  * execution after the master process ended resourse init
  */
-void synchronize_resources(int);
+void wait_for_master(int);
 
 int equal_transaction(transaction, transaction);
 
@@ -194,18 +193,12 @@ int array_contains(transaction *, transaction);
 
 void print_configuration(configuration);
 
+void print_table_header();
+
 void print_transaction(transaction);
 
 void print_block(block);
 
 void print_all_transactions(transaction *);
-
-void print_table_header();
-
-void *new_shared_memory(char, int, size_t);
-
-int new_message_queue(char);
-
-int new_semaphore(char);
 
 #endif

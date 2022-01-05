@@ -1,5 +1,5 @@
-#include "util.h"
-#include "node.h"
+#include "../include/util.h"
+#include "../include/node.h"
 
 configuration (*config);
 ledger (*master_ledger);
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transactions));
 
     printf("Ledger size = %d\n", *ledger_size);
-    synchronize_resources(id_sem_init);
+    wait_for_master(id_sem_init);
 
     /* while (1) {
         if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(transaction) - sizeof(long), 0, 0) < 0) {
@@ -187,47 +187,26 @@ int remove_from_transaction_pool(transaction t) {
     return removed;
 }
 
-/* Useless, when a set of transactions are extracted, they are
-   not in the ledger because when a block is added to ledger
-   automatically those transactions are removed from pool */
-int ledger_has_transaction(ledger *ledger, transaction t) {
-    int found = 0;
-    int i;
-    int j;
-
-    for (i = 0; i < *ledger_size && !found; i++) {
-        for (j = 0; j < SO_BLOCK_SIZE; j++) {
-            if ((*ledger).blocks[i].transactions[j].timestamp == t.timestamp &&
-                (*ledger).blocks[i].transactions[j].sender == t.sender) {
-                found = 1;
-            }
-        }
-        next_block_to_check++;
-    }
-
-    return found;
-}
-
-int add_to_ledger(ledger *ledger, block block) {
+transaction *extract_transactions_block_from_pool() {
     int added = 0;
-    if (*ledger_size < SO_REGISTRY_SIZE) {
-        (*ledger).blocks[*ledger_size] = block;
-        added = 1;
-        balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
-        (*last_block_id)++;
-        (*ledger_size)++;
-        printf("Ledger size = %d\n", *ledger_size);
-        printf("last_block_id = %d\n", *last_block_id);
-    } else {
-        kill(getppid(), SIGUSR2);
-        printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
+    int lower = 0;
+    int upper = transaction_pool_size;
+    int random;
+    transaction *transactions = malloc((SO_BLOCK_SIZE - 1) * sizeof(transaction));
+    struct timespec tp;
+
+    clock_gettime(CLOCK_REALTIME, &tp);
+    srand(tp.tv_sec);
+
+    while (added < SO_BLOCK_SIZE - 1) {
+        random = (rand() % (upper - lower)) + lower;
+        if (!array_contains(transactions, pool.transactions[random])) {
+            transactions[added] = pool.transactions[random];
+            added++;
+        }
     }
 
-    print_transaction(master_ledger->blocks[0].transactions[0]);
-    print_transaction(master_ledger->blocks[0].transactions[1]);
-    print_transaction(master_ledger->blocks[0].transactions[2]);
-
-    return added;
+    return transactions;
 }
 
 block new_block(transaction transactions[]) {
@@ -272,47 +251,48 @@ transaction new_reward_transaction(int total_amount) {
     return transaction;
 }
 
-transaction *extract_transactions_block_from_pool() {
+int add_to_ledger(ledger *ledger, block block) {
     int added = 0;
-    int lower = 0;
-    int upper = transaction_pool_size;
-    int random;
-    transaction *transactions = malloc((SO_BLOCK_SIZE - 1) * sizeof(transaction));
-    struct timespec tp;
-    printf("Here 1\n");
-    clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_sec);
-    printf("Here 2\n");
-    exit(0);
-    while (added < SO_BLOCK_SIZE - 1) {
-        random = (rand() % (upper - lower)) + lower;
-        printf("random = %d\n", random);
-        if (!array_contains(transactions, pool.transactions[random])) {
-            transactions[added] = pool.transactions[random];
-            added++;
-            printf("Added");
-        }
+    if (*ledger_size < SO_REGISTRY_SIZE) {
+        (*ledger).blocks[*ledger_size] = block;
+        added = 1;
+        balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
+        (*last_block_id)++;
+        (*ledger_size)++;
+        printf("Ledger size = %d\n", *ledger_size);
+        printf("last_block_id = %d\n", *last_block_id);
+    } else {
+        kill(getppid(), SIGUSR2);
+        printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
-    /*for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
-        random = (rand() % (upper - lower)) + lower;
-        printf("random = %d\n", random);
-        if (!array_contains(transactions, pool.transactions[random])) {
-            transactions[i] = pool.transactions[random];
-        }
-    }*/
+    print_transaction(master_ledger->blocks[0].transactions[0]);
+    print_transaction(master_ledger->blocks[0].transactions[1]);
+    print_transaction(master_ledger->blocks[0].transactions[2]);
 
-    /*while (confirmed < SO_BLOCK_SIZE - 1) {
-        random = (rand() % (upper - lower)) + lower;
-        printf("random = %d\n", random);
-        if (!array_contains(numbers, random)) {
-            numbers[confirmed] = random;
-            transactions[confirmed] = pool.transactions[random];
-            confirmed++;
+    return added;
+}
+
+
+/* Useless, when a set of transactions are extracted, they are
+   not in the ledger because when a block is added to ledger
+   automatically those transactions are removed from pool */
+int ledger_has_transaction(ledger *ledger, transaction t) {
+    int found = 0;
+    int i;
+    int j;
+
+    for (i = 0; i < *ledger_size && !found; i++) {
+        for (j = 0; j < SO_BLOCK_SIZE; j++) {
+            if ((*ledger).blocks[i].transactions[j].timestamp == t.timestamp &&
+                (*ledger).blocks[i].transactions[j].sender == t.sender) {
+                found = 1;
+            }
         }
-    }*/
-    printf("Here 3\n");
-    return transactions;
+        next_block_to_check++;
+    }
+
+    return found;
 }
 
 void print_transaction_pool() {
@@ -324,10 +304,23 @@ void print_transaction_pool() {
     }
 }
 
-void reset_ledger() {
-    memset(master_ledger->blocks, 0, sizeof(master_ledger->blocks));
-    *ledger_size = 0;
-    next_block_to_check = 0;
+void update_info() {
+    node_list[node_index].balance = balance;
+    node_list[node_index].transactions_left = transaction_pool_size;
+}
+
+void clean_transaction_pool() {
+    /* Maybe need to release semaphores */
+    int i;
+    if (transaction_pool_size > 0) {
+        for (i = 0; i < transaction_pool_size; i++) {
+            user_node_msg.mtype = pool.transactions[i].sender;
+            user_node_msg.t = pool.transactions[i];
+            msgsnd(id_msg_node_user, &user_node_msg, sizeof(user_node_message), 0);
+        }
+    }
+    transaction_pool_size = 0;
+    free(pool.transactions);
 }
 
 void handler(int signal) {
@@ -353,23 +346,4 @@ void handler(int signal) {
         default:
             break;
     }
-}
-
-void update_info() {
-    node_list[node_index].balance = balance;
-    node_list[node_index].transactions_left = transaction_pool_size;
-}
-
-void clean_transaction_pool() {
-    /* Maybe need to release semaphores */
-    int i;
-    if (transaction_pool_size > 0) {
-        for (i = 0; i < transaction_pool_size; i++) {
-            user_node_msg.mtype = pool.transactions[i].sender;
-            user_node_msg.t = pool.transactions[i];
-            msgsnd(id_msg_node_user, &user_node_msg, sizeof(user_node_message), 0);
-        }
-    }
-    transaction_pool_size = 0;
-    free(pool.transactions);
 }
