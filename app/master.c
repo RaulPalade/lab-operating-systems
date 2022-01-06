@@ -64,8 +64,8 @@ int main() {
     pid_t node_pid;
     pid_t user_pid;
     struct sigaction sa;
-    union semun sem_arg;
     struct timespec interval;
+    union semun sem_arg;
     interval.tv_sec = 1;
     interval.tv_nsec = 0;
 
@@ -142,6 +142,7 @@ int main() {
     EXIT_ON_ERROR
     sem_arg.val = 1;
     semctl(id_sem_init, 0, SETVAL, sem_arg);
+    /*set_semaphore_val(id_sem_init, 0, 1);*/
 
     key = ftok("../makefile", PROJ_ID_SEM_WRITERS);
     EXIT_ON_ERROR
@@ -149,6 +150,7 @@ int main() {
     EXIT_ON_ERROR
     sem_arg.val = 1;
     semctl(id_sem_writers, 0, SETVAL, sem_arg);
+    /*set_semaphore_val(id_sem_writers, 0, 1);*/
 
     /* Preparing cmd line arguments for execv */
     sprintf(id_shm_configuration_str, "%d", id_shm_configuration);
@@ -187,7 +189,7 @@ int main() {
     args_user[11] = NULL;
 
 
-    printf("Launching Node processes\n");
+    /*printf("Launching Node processes\n");*/
     for (i = 0; i < (*config).SO_NODES_NUM; i++) {
         switch (node_pid = fork()) {
             case -1:
@@ -199,12 +201,13 @@ int main() {
                 execv("node", args_node);
 
             default:
+                printf("%d\n", node_pid);
                 active_nodes++;
                 node_list[i].pid = node_pid;
         }
     }
 
-    printf("Launching User processes\n");
+    /*printf("Launching User processes\n");*/
     for (i = 0; i < (*config).SO_USERS_NUM; i++) {
         switch (user_pid = fork()) {
             case -1:
@@ -222,20 +225,20 @@ int main() {
         }
     }
 
-    printf("Starting timer right now\n");
+    /*printf("Starting timer right now\n");*/
     remaining_seconds = config->SO_SIM_SEC;
     alarm(config->SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
-        print_node_info();
-        print_user_info();
+        /*print_node_info();
+        print_user_info();*/
         printf("Remaining seconds = %d\n", remaining_seconds--);
         nanosleep(&interval, NULL);
     }
 
-    /* kill(0, SIGQUIT); */
-    print_final_report();
-    print_ledger(master_ledger);
+    kill(0, SIGTERM);
+   /* print_final_report();
+    print_ledger(master_ledger);*/
 
     for (i = 0; i < config->SO_NODES_NUM; i++) {
         final_total_funds += node_list[i].balance;
@@ -257,8 +260,8 @@ int main() {
 
     cleanIPC();
 
-    printf("Initial total funds = %d\n", initial_total_funds);
-    printf("Final total funds = %d\n", final_total_funds);
+    /*printf("Initial total funds = %d\n", initial_total_funds);
+    printf("Final total funds = %d\n", final_total_funds);*/
     assert(initial_total_funds == final_total_funds);
 
     return 0;
@@ -368,7 +371,7 @@ configuration read_configuration() {
         }
     } else {
         printf("File doesn't exists\n");
-        EXIT_ON_ERROR;
+        EXIT_ON_ERROR
     }
 
     if (i < 10) {
@@ -407,6 +410,7 @@ void handler(int signal) {
         case SIGUSR1:
             printf("Master received SIGUSR1\n");
             active_users--;
+            /* Rimuovere utente dalla lista degli utenti */
             break;
 
         case SIGUSR2:

@@ -2,6 +2,7 @@
 #define __MASTER_H_
 
 #include "util.h"
+#include "semlib.h"
 
 #define NODE "node"
 #define USER "user"

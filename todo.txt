@@ -1,0 +1,7 @@
+Cosa manca?
+1) Definizione ciclo di vita Utente
+2) Definizione ciclo di vita Node
+3) Aggiunta semaforo mutex per incremento numero lettori (lettori ledger, lettori strutture)
+4) Aggiunta semaforo lettura/scrittura last_block_id
+5) Aggiunsta signalmask per bloccare i segnali
+6) Rivedere tutta la logica dell'avvio e terminazione dei processi

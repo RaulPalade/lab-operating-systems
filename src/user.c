@@ -132,19 +132,30 @@ int main(int argc, char *argv[]) {
         add_to_processing_list(user_node_msg.t);
     } */
 
+    while (1) {
+        /*if (balance >= 2) {
+            transaction = new_transaction();
+            user_node_msg.mtype = get_random_node();
+            user_node_msg.t = transaction;
+            msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_msg), 0);
+        }
+        update_info();*/
+    }
+
     calculate_balance();
     if (balance >= 2) {
         transaction = new_transaction();
-        print_transaction(transaction);
         user_node_msg.mtype = get_random_node();
+        printf("Random Node = %ld\n", user_node_msg.mtype);
         user_node_msg.t = transaction;
-        print_transaction(user_node_msg.t);
         if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
             dying++;
             if (dying == config->SO_RETRY) {
                 update_info(atoi(argv[1]));
                 kill(getppid(), SIGUSR1);
             }
+        } else {
+            printf("Sended\n");
         }
 
         lower = config->SO_MIN_TRANS_GEN_NSEC;
@@ -213,7 +224,7 @@ transaction new_transaction() {
     clock_gettime(CLOCK_REALTIME, &tp);
     transaction.timestamp = tp.tv_sec;
     transaction.sender = getpid();
-    transaction.receiver = get_random_user(); /*ERRORE QUI*/
+    transaction.receiver = get_random_user();
     transaction.amount = toUser;
     transaction.reward = toNode;
 
@@ -254,11 +265,10 @@ pid_t get_random_user() {
     random = (rand() % (upper - lower)) + lower;
     nanosleep(&interval, NULL);
 
-    /*ERRORE QUI*/
     if (user_list[random].pid == getpid()) {
         if (random == config->SO_USERS_NUM - 1) {
             random--;
-        } else if (random == 0) {
+        } else {
             random++;
         }
     }
@@ -296,7 +306,7 @@ void print_completed_list() {
 }
 
 void update_info() {
-    printf("Last block id user = %d\n", *last_block_id);
+    /*printf("Last block id user = %d\n", *last_block_id);*/
     user_list[user_index].balance = calculate_balance();
 }
 
@@ -310,7 +320,7 @@ void handler(int signal) {
         case SIGTERM:
             printf("User received SIGTERM\n");
             kill(getppid(), SIGUSR1);
-            break;
+            exit(0);
 
         case SIGQUIT:
             printf("User received SIGQUIT\n");

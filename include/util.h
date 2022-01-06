@@ -83,13 +83,6 @@ typedef struct {
     block blocks[SO_REGISTRY_SIZE];
 } ledger;
 
-union semun {
-    int val;
-    struct semid_ds *buf;
-    unsigned short *array;
-    struct seminfo *__buf;
-};
-
 /* MESSAGE QUEUE STRUCTURES */
 typedef struct {
     long mtype;
@@ -116,76 +109,6 @@ typedef struct {
     pid_t pid;
     int balance;
 } user_information;
-
-/**
- * Function used by processes to access a
- * protected resource in order to 
- * avoid data inconsistency.
- * 
- * If a resource wants to write on a 
- * shared memory segment, it must acquire 
- * the resource in order to stop other processes
- * accessing it during writing operations.
- * 
- * If a resource wants to read on a 
- * shared memory segment, it must acquire the 
- * resource in order to stop other writer 
- * processes to access it during reading operations.
- *
- * If there are many processes that wants to read 
- * in the segment, only the first process will block the resource.
- * Condition readers == 1
- * 
- * @param semaphore semaphore used to protect the resource
- * @param id_block  id of the block to access
- */
-void acquire_resource(int, int);
-
-/**
- * Function used by processes to release a
- * protected resource in order to 
- * leave it available to other processes.
- * 
- * If the process was acquired for read operations,
- * the last process must realease the resource
- * Condition readers == 0
- * 
- * @param semaphore semaphore used to protect the resource
- * @param id_block  id of the block to release
- */
-void release_resource(int, int);
-
-/**
- * Function used by reader processes to 
- * increment the number of processes that 
- * are currently reading the proteted resource
- * No other process can overwrite the variable
- * if one is doing it.
- */
-void lock(int);
-
-/**
- * Function used by reader processes to 
- * decrement the number of processes that 
- * are currently reading the proteted resource
- * No other process can overwrite the variable
- * if one is doing it.
- */
-void unlock(int);
-
-/**
- * Function used by master process to release
- * the init semaphore to allow node and user
- * processes to begin execution
- */
-void unlock_init_semaphore(int);
-
-/**
- * Synchronyze resources before the simulations starts.
- * Node and user processes wait for 0 to begin the
- * execution after the master process ended resourse init
- */
-void wait_for_master(int);
 
 int equal_transaction(transaction, transaction);
 

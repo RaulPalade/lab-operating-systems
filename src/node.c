@@ -87,7 +87,6 @@ int main(int argc, char *argv[]) {
 
     pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transactions));
 
-    printf("Ledger size = %d\n", *ledger_size);
     wait_for_master(id_sem_init);
 
     /* while (1) {
@@ -120,38 +119,44 @@ int main(int argc, char *argv[]) {
 
      msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_message), getpid(), 0);
     print_transaction(user_node_msg.t); */
-    msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
-    success = add_to_transaction_pool(user_node_msg.t);
-    msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
-    success = add_to_transaction_pool(user_node_msg.t);
-    print_transaction_pool();
+
+    while (1) {
+        /*msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+        print_transaction(user_node_msg.t);*/
+    }
+
+    while (1) {
+        msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+        printf("Received\n");
+        print_transaction(user_node_msg.t);
+        success = add_to_transaction_pool(user_node_msg.t);
+        /*print_transaction_pool();*/
 /*     if (!success) {
         user_node_msg.mtype = 2;
         msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 1);
     }*/
 
-    if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
-        printf("transaction_pool_size >= SO_BLOCK_SIZE - 1\n");
-        transactions = extract_transactions_block_from_pool();
-        printf("Here\n");
-        block = new_block(transactions);
+        if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
+            /*printf("transaction_pool_size >= SO_BLOCK_SIZE - 1\n");*/
+            transactions = extract_transactions_block_from_pool();
+            block = new_block(transactions);
 
-        acquire_resource(id_sem_writers, *last_block_id);
-        success = add_to_ledger(master_ledger, block);
-        release_resource(id_sem_writers, *last_block_id);
-        if (success) {
-            for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
-                remove_from_transaction_pool(transactions[i]);
+            acquire_resource(id_sem_writers, *last_block_id);
+            success = add_to_ledger(master_ledger, block);
+            release_resource(id_sem_writers, *last_block_id);
+            if (success) {
+                for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
+                    remove_from_transaction_pool(transactions[i]);
+                }
+            } else {
+                printf("Failure\n");
             }
         } else {
-            printf("Failure\n");
+            /*printf("transaction_pool_size < SO_BLOCK_SIZE\n");*/
         }
-    } else {
-        printf("transaction_pool_size < SO_BLOCK_SIZE\n");
-    }
 
-    printf("Ledger size = %d\n", *ledger_size);
-    update_info();
+        update_info();
+    }
 
     return 0;
 }
@@ -259,16 +264,16 @@ int add_to_ledger(ledger *ledger, block block) {
         balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
         (*last_block_id)++;
         (*ledger_size)++;
-        printf("Ledger size = %d\n", *ledger_size);
-        printf("last_block_id = %d\n", *last_block_id);
+        /* printf("Ledger size = %d\n", *ledger_size);
+         printf("last_block_id = %d\n", *last_block_id);*/
     } else {
         kill(getppid(), SIGUSR2);
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
-    print_transaction(master_ledger->blocks[0].transactions[0]);
+    /*print_transaction(master_ledger->blocks[0].transactions[0]);
     print_transaction(master_ledger->blocks[0].transactions[1]);
-    print_transaction(master_ledger->blocks[0].transactions[2]);
+    print_transaction(master_ledger->blocks[0].transactions[2]);*/
 
     return added;
 }
@@ -335,7 +340,7 @@ void handler(int signal) {
             printf("Node received SIGTERM\n");
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
-            break;
+            exit(0);
 
         case SIGQUIT:
             printf("Node received SIGQUIT\n");

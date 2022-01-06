@@ -1,4 +1,5 @@
 #include "util.h"
+#include "semlib.h"
 
 int calculate_balance();
 
