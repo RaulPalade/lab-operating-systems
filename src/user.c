@@ -45,6 +45,7 @@ int n_completed_transactions = 0;
  * 5) Send transaction
  */
 int main(int argc, char *argv[]) {
+    /*int i;*/
     int lower;
     int upper;
     long random;
@@ -92,28 +93,26 @@ int main(int argc, char *argv[]) {
 
     balance = config->SO_BUDGET_INIT;
     wait_for_master(id_sem_init);
-    /* while (1) {
-        if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0, 0) < 0) {
-            add_to_processing_list(user_node_msg.t);
-        }
 
+    while (1) {
+
+        /*if (msgrcv(id_msg_node_user, &user_node_msg, sizeof(user_node_msg), getpid(), 0) != -1) {
+            for (i = 0; i < n_processing_transactions; i++) {
+                if(equal_transaction(user_node_msg.t, processing_transactions[i])) {
+                    remove_from_processing_list(i);
+                }
+            }
+        }*/
         calculate_balance();
-        printf("Balance = %d\n", balance);
-        if(balance < 0) {
-            raise(SIGKILL);
-        }
         if (balance >= 2) {
             transaction = new_transaction();
-            print_transaction(transaction);
-            printf("processing list\n");
-            print_processing_list();
-            user_node_msg.mtype = 0;
+            user_node_msg.mtype = get_random_node();
             user_node_msg.t = transaction;
-            if ((msgsnd(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg) - sizeof(long), 0)) < 0) {
+            if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
                 dying++;
                 if (dying == config->SO_RETRY) {
-                    update_info(atoi(argv[1]));
-                    kill(getppid(), SIGUSR1);
+                    update_info();
+                    raise(SIGINT);
                 }
             }
 
@@ -122,53 +121,11 @@ int main(int argc, char *argv[]) {
             random = (rand() % (upper - lower + 1)) + lower;
             interval.tv_sec = 0;
             interval.tv_nsec = random;
+
+            update_info();
             nanosleep(&interval, NULL);
         }
-
-        update_info(atoi(argv[1]));
-    } */
-
-    /* if (msgrcv(id_message_queue_node_user, &user_node_msg, sizeof(user_node_msg), 0, 0) < 0) {
-        add_to_processing_list(user_node_msg.t);
-    } */
-
-    while (1) {
-        /*if (balance >= 2) {
-            transaction = new_transaction();
-            user_node_msg.mtype = get_random_node();
-            user_node_msg.t = transaction;
-            msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_msg), 0);
-        }
-        update_info();*/
     }
-
-    calculate_balance();
-    if (balance >= 2) {
-        transaction = new_transaction();
-        user_node_msg.mtype = get_random_node();
-        printf("Random Node = %ld\n", user_node_msg.mtype);
-        user_node_msg.t = transaction;
-        if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
-            dying++;
-            if (dying == config->SO_RETRY) {
-                update_info(atoi(argv[1]));
-                kill(getppid(), SIGUSR1);
-            }
-        } else {
-            printf("Sended\n");
-        }
-
-        lower = config->SO_MIN_TRANS_GEN_NSEC;
-        upper = config->SO_MAX_TRANS_GEN_NSEC;
-        random = (rand() % (upper - lower + 1)) + lower;
-        interval.tv_sec = 0;
-        interval.tv_nsec = random;
-        nanosleep(&interval, NULL);
-    } else {
-        printf("balance < 2\n");
-    }
-
-    update_info();
 
     return 0;
 }
@@ -306,7 +263,6 @@ void print_completed_list() {
 }
 
 void update_info() {
-    /*printf("Last block id user = %d\n", *last_block_id);*/
     user_list[user_index].balance = calculate_balance();
 }
 

@@ -1,14 +1,8 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
-#include <signal.h>
 #include <sys/sem.h>
-#include <sys/types.h>
 #include "../include/semlib.h"
 
 int set_semaphore_val(int id_semaphore, int sem_num, int sem_val) {
-    return semctl(id_semaphore, sem_num, sem_val);
+    return semctl(id_semaphore, sem_num, SETVAL, sem_val);
 }
 
 /* For writers and also for readers when readers == 1 */
