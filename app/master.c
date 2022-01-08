@@ -67,7 +67,7 @@ int main() {
     pid_t user_pid;
     struct sigaction sa;
     struct timespec interval;
-    interval.tv_sec = 1;
+    interval.tv_sec = 5;
     interval.tv_nsec = 0;
 
     memset(&sa, 0, sizeof(sa));
@@ -249,11 +249,11 @@ int main() {
     /*print_final_report();*/
     print_ledger(master_ledger);
 
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < 2; i++) {
         final_total_funds += node_list[i].balance;
     }
 
-    for (i = 0; i < 100; i++) {
+    for (i = 0; i < 10; i++) {
         final_total_funds += user_list[i].balance;
     }
 

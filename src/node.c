@@ -181,7 +181,7 @@ block new_block(transaction transactions[]) {
 
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_nsec);
-    random = (rand() % (upper - lower)) + lower;
+    random = (rand() % (upper - lower + 1)) + lower;
 
     interval.tv_sec = 0;
     interval.tv_nsec = random;

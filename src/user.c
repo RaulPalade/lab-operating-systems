@@ -143,6 +143,7 @@ int calculate_balance() {
     int equal = 0;
 
     lock(id_sem_readers_block_id);
+    (*readers_block_id)++;
     if (readers_block_id == 0) {
         lock(id_sem_writers_block_id);
     }
@@ -170,6 +171,7 @@ int calculate_balance() {
     next_block_to_check = *block_id;
 
     lock(id_sem_readers_block_id);
+    (*readers_block_id)++;
     if (readers_block_id == 0) {
         unlock(id_sem_writers_block_id);
     }
