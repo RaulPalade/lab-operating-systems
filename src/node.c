@@ -5,15 +5,16 @@ configuration (*config);
 ledger (*master_ledger);
 node_information (*node_list);
 user_information (*user_list);
-int *last_block_id;
-int *ledger_size;
+int *block_id;
+int *readers_block_id;
 
 /* SHARED MEMORY */
 int id_shm_configuration;
 int id_shm_ledger;
 int id_shm_node_list;
-int id_shm_last_block_id;
+int id_shm_block_id;
 int id_shm_ledger_size;
+int id_shm_readers_block_id;
 
 /* MESSAGE QUEUE */
 int id_msg_node_user;
@@ -21,12 +22,13 @@ int id_msg_user_node;
 
 /* SEMAPHORE*/
 int id_sem_init;
-int id_sem_writers;
+int id_sem_writers_block_id;
+int id_sem_readers_block_id;
 
 int node_index;
 transaction_pool pool;
 int transaction_pool_size = 0;
-int balance = 0;
+unsigned long balance = 0;
 int next_block_to_check = 0;
 
 user_node_message user_node_msg;
@@ -70,12 +72,13 @@ int main(int argc, char *argv[]) {
     node_list = shmat(id_shm_node_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_last_block_id = atoi(argv[5]);
-    last_block_id = shmat(id_shm_last_block_id, NULL, 0);
+    id_shm_block_id = atoi(argv[5]);
+    block_id = shmat(id_shm_block_id, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_ledger_size = atoi(argv[6]);
-    ledger_size = shmat(id_shm_ledger_size, NULL, 0);
+    id_shm_readers_block_id = atoi(argv[6]);
+    readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
+    EXIT_ON_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
     id_msg_node_user = atoi(argv[7]);
@@ -83,9 +86,10 @@ int main(int argc, char *argv[]) {
 
     /* SEMAPHORE CREATION */
     id_sem_init = atoi(argv[9]);
-    id_sem_writers = atoi(argv[10]);
+    id_sem_writers_block_id = atoi(argv[10]);
+    id_sem_readers_block_id = atoi(argv[11]);
 
-    pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transactions));
+    pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transaction));
 
     wait_for_master(id_sem_init);
 
@@ -93,16 +97,13 @@ int main(int argc, char *argv[]) {
         msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
         success = add_to_transaction_pool(user_node_msg.t);
         if (!success) {
-            printf("EXCEEDED TP SIZE\n");
             user_node_msg.mtype = user_node_msg.t.sender;
             msgsnd(id_msg_node_user, &user_node_msg, sizeof(user_node_message), 0);
         } else {
             if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
                 transactions = extract_transactions_block_from_pool();
                 block = new_block(transactions);
-                acquire_resource(id_sem_writers, *last_block_id);
                 success = add_to_ledger(master_ledger, block);
-                release_resource(id_sem_writers, *last_block_id);
                 if (success) {
                     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
                         remove_from_transaction_pool(transactions[i]);
@@ -117,7 +118,7 @@ int main(int argc, char *argv[]) {
 
 int add_to_transaction_pool(transaction t) {
     int added = 0;
-    if (transaction_pool_size < config->SO_TP_SIZE - 1) {
+    if (transaction_pool_size < config->SO_TP_SIZE) {
         pool.transactions[transaction_pool_size] = t;
         transaction_pool_size++;
         added = 1;
@@ -155,7 +156,7 @@ transaction *extract_transactions_block_from_pool() {
     struct timespec tp;
 
     clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_sec);
+    srand(tp.tv_nsec);
 
     while (added < SO_BLOCK_SIZE - 1) {
         random = (rand() % (upper - lower)) + lower;
@@ -179,14 +180,12 @@ block new_block(transaction transactions[]) {
     struct timespec tp;
 
     clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_sec);
+    srand(tp.tv_nsec);
     random = (rand() % (upper - lower)) + lower;
 
     interval.tv_sec = 0;
     interval.tv_nsec = random;
 
-    block.id = *last_block_id;
-    printf("Block id = %d\n", block.id);
     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
         block.transactions[i] = transactions[i];
         total_reward += transactions[i].reward;
@@ -197,7 +196,7 @@ block new_block(transaction transactions[]) {
     return block;
 }
 
-transaction new_reward_transaction(int total_amount) {
+transaction new_reward_transaction(unsigned long total_amount) {
     struct timespec tp;
     transaction transaction;
 
@@ -213,22 +212,18 @@ transaction new_reward_transaction(int total_amount) {
 
 int add_to_ledger(ledger *ledger, block block) {
     int added = 0;
-    if (*ledger_size < SO_REGISTRY_SIZE) {
-        (*ledger).blocks[*ledger_size] = block;
-        added = 1;
+    lock(id_sem_writers_block_id);
+    if (*block_id < SO_REGISTRY_SIZE) {
+        block.id = *block_id;
+        (*ledger).blocks[*block_id] = block;
+        (*block_id)++;
+        unlock(id_sem_writers_block_id);
         balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
-        (*last_block_id)++;
-        (*ledger_size)++;
-        /* printf("Ledger size = %d\n", *ledger_size); */
-        /*printf("last_block_id = %d\n", *last_block_id);*/
+        added = 1;
     } else {
         kill(getppid(), SIGUSR2);
         printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
-
-    /*print_transaction(master_ledger->blocks[0].transactions[0]);
-    print_transaction(master_ledger->blocks[0].transactions[1]);
-    print_transaction(master_ledger->blocks[0].transactions[2]);*/
 
     return added;
 }
@@ -242,7 +237,7 @@ int ledger_has_transaction(ledger *ledger, transaction t) {
     int i;
     int j;
 
-    for (i = 0; i < *ledger_size && !found; i++) {
+    for (i = 0; i < *block_id && !found; i++) {
         for (j = 0; j < SO_BLOCK_SIZE; j++) {
             if ((*ledger).blocks[i].transactions[j].timestamp == t.timestamp &&
                 (*ledger).blocks[i].transactions[j].sender == t.sender) {

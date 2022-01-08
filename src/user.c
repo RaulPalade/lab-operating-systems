@@ -5,14 +5,16 @@ configuration (*config);
 ledger (*master_ledger);
 node_information (*node_list);
 user_information (*user_list);
-int *last_block_id;
+int *block_id;
+int *readers_block_id;
 
 /* SHARED MEMORY */
 int id_shm_configuration;
 int id_shm_ledger;
 int id_shm_node_list;
 int id_shm_user_list;
-int id_shm_last_block_id;
+int id_shm_block_id;
+int id_shm_readers_block_id;
 
 /* MESSAGE QUEUE */
 int id_msg_node_user;
@@ -20,7 +22,8 @@ int id_msg_user_node;
 
 /* SEMAPHORE*/
 int id_sem_init;
-int id_sem_writers;
+int id_sem_writers_block_id;
+int id_sem_readers_block_id;
 
 /* MESSAGE DATA STRUCTURE */
 user_node_message user_node_msg;
@@ -30,7 +33,7 @@ user_master_message user_master_msg;
 transaction (*processing_transactions);
 transaction (*completed_transactions);
 int user_index;
-int balance = 0;
+unsigned long balance = 0;
 int next_block_to_check = 0;
 int dying = 0;
 int n_processing_transactions = 0;
@@ -79,17 +82,22 @@ int main(int argc, char *argv[]) {
     user_list = shmat(id_shm_user_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_last_block_id = atoi(argv[6]);
-    last_block_id = shmat(id_shm_last_block_id, NULL, 0);
+    id_shm_block_id = atoi(argv[6]);
+    block_id = shmat(id_shm_block_id, NULL, 0);
+    EXIT_ON_ERROR
+
+    id_shm_readers_block_id = atoi(argv[7]);
+    readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
     EXIT_ON_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_node_user = atoi(argv[7]);
-    id_msg_user_node = atoi(argv[8]);
+    id_msg_node_user = atoi(argv[8]);
+    id_msg_user_node = atoi(argv[9]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[9]);
-    id_sem_writers = atoi(argv[10]);
+    id_sem_init = atoi(argv[10]);
+    id_sem_writers_block_id = atoi(argv[11]);
+    id_sem_readers_block_id = atoi(argv[12]);
 
     balance = config->SO_BUDGET_INIT;
     wait_for_master(id_sem_init);
@@ -126,17 +134,21 @@ int main(int argc, char *argv[]) {
             nanosleep(&interval, NULL);
         }
     }
-
-    return 0;
 }
 
 int calculate_balance() {
     int i;
     int j;
     int y;
+    int equal = 0;
 
-    for (i = next_block_to_check; i < *last_block_id; i++) {
-        for (j = 0; j < SO_BLOCK_SIZE; j++) {
+    lock(id_sem_readers_block_id);
+    if (readers_block_id == 0) {
+        lock(id_sem_writers_block_id);
+    }
+    unlock(id_sem_readers_block_id);
+    for (i = next_block_to_check; i <= *block_id; i++) {
+        for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
             if ((*master_ledger).blocks[i].transactions[j].sender == getpid()) {
                 balance -= ((*master_ledger).blocks[i].transactions[j].amount +
                             (*master_ledger).blocks[i].transactions[j].reward);
@@ -146,15 +158,22 @@ int calculate_balance() {
                 balance += (*master_ledger).blocks[i].transactions[j].amount;
             }
 
-            for (y = 0; y < n_processing_transactions; y++) {
+            for (y = 0; y < n_processing_transactions && !equal; y++) {
                 if (equal_transaction((*master_ledger).blocks[i].transactions[j], processing_transactions[y])) {
+                    equal = 1;
                     add_to_completed_list(processing_transactions[y]);
                     remove_from_processing_list(y);
                 }
             }
         }
     }
-    next_block_to_check = *last_block_id;
+    next_block_to_check = *block_id;
+
+    lock(id_sem_readers_block_id);
+    if (readers_block_id == 0) {
+        unlock(id_sem_writers_block_id);
+    }
+    unlock(id_sem_readers_block_id);
 
     for (y = 0; y < n_processing_transactions; y++) {
         balance -= processing_transactions[y].amount + processing_transactions[y].reward;
@@ -173,7 +192,7 @@ transaction new_transaction() {
     struct timespec tp;
 
     clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_sec);
+    srand(tp.tv_nsec);
     random = (rand() % (upper - lower + 1)) + lower;
     toNode = (random * 20) / 100;
     toUser = random - toNode;
@@ -214,21 +233,33 @@ pid_t get_random_user() {
     int lower = 0;
     int upper = config->SO_USERS_NUM;
     struct timespec tp;
-    struct timespec interval;
-    interval.tv_sec = 1;
+    /*struct timespec interval;
+    interval.tv_sec = 1;*/
 
     clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_sec);
+    srand(tp.tv_nsec);
     random = (rand() % (upper - lower)) + lower;
-    nanosleep(&interval, NULL);
+    /*nanosleep(&interval, NULL);*/
 
-    if (user_list[random].pid == getpid()) {
+    while (user_list[random].pid == getpid() || user_list[random].pid == -1) {
         if (random == config->SO_USERS_NUM - 1) {
             random--;
         } else {
             random++;
         }
     }
+
+    if (random < 0) {
+        printf("All users are dead\n");
+    }
+
+    /*if (user_list[random].pid == getpid()) {
+        if (random == config->SO_USERS_NUM - 1) {
+            random--;
+        } else {
+            random++;
+        }
+    }*/
 
     return user_list[random].pid;
 }
@@ -240,8 +271,20 @@ pid_t get_random_node() {
     struct timespec tp;
 
     clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_sec);
+    srand(tp.tv_nsec);
     random = (rand() % (upper - lower)) + lower;
+
+    while (node_list[random].pid == -1) {
+        if (random == config->SO_NODES_NUM - 1) {
+            random--;
+        } else {
+            random++;
+        }
+    }
+
+    if (random < 0) {
+        printf("All nodes are dead\n");
+    }
 
     return node_list[random].pid;
 }

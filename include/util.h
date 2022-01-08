@@ -41,14 +41,15 @@
 #define PROJ_ID_SHM_LEDGER 'b'
 #define PROJ_ID_SHM_NODE_LIST 'c'
 #define PROJ_ID_SHM_USER_LIST 'd'
-#define PROJ_ID_SHM_LAST_BLOCK_ID 'e'
-#define PROJ_ID_SHM_LEDGER_SIZE 'f'
+#define PROJ_ID_SHM_BLOCK_ID 'e'
+#define PROJ_ID_SHM_READERS_BLOCK_ID 'f'
 
 #define PROJ_ID_MSG_NODE_USER 'g'
 #define PROJ_ID_MSG_USER_NODE 'h'
 
 #define PROJ_ID_SEM_INIT 'i'
 #define PROJ_ID_SEM_WRITERS 'l'
+#define PROJ_ID_SEM_READERS_BLOCK_ID 'm'
 
 #define EXIT_ON_ERROR                                                                                           \
     if (errno) {                                                                                                \
@@ -77,8 +78,8 @@ typedef struct {
     time_t timestamp;
     pid_t sender;
     pid_t receiver;
-    int amount;
-    int reward;
+    unsigned long amount;
+    unsigned long reward;
 } transaction;
 
 typedef struct {
@@ -103,18 +104,18 @@ typedef struct {
 
 typedef struct {
     long mtype;
-    int balance;
+    unsigned long balance;
 } user_master_message;
 
 typedef struct {
     pid_t pid;
-    int balance;
-    int transactions_left;
+    unsigned long balance;
+    unsigned long transactions_left;
 } node_information;
 
 typedef struct {
     pid_t pid;
-    int balance;
+    unsigned long balance;
 } user_information;
 
 int equal_transaction(transaction, transaction);

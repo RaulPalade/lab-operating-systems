@@ -37,7 +37,7 @@ void print_table_header() {
 }
 
 void print_transaction(transaction t) {
-    printf("%15ld %15d %15d %15d %15d\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward);
+    printf("%15ld %15d %15d %15ld %15ld\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward);
 }
 
 void print_block(block block) {

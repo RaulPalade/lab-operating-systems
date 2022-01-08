@@ -4,16 +4,16 @@ configuration (*config);
 ledger (*master_ledger);
 node_information (*node_list);
 user_information (*user_list);
-int *last_block_id;
-int *ledger_size;
+int *block_id;
+int *readers_block_id;
 
 /* SHARED MEMORY */
 int id_shm_configuration;
 int id_shm_ledger;
 int id_shm_node_list;
 int id_shm_user_list;
-int id_shm_last_block_id;
-int id_shm_ledger_size;
+int id_shm_block_id;
+int id_shm_readers_block_id;
 
 /* MESSAGE QUEUE */
 int id_msg_node_user;
@@ -21,7 +21,8 @@ int id_msg_user_node;
 
 /* SEMAPHORE*/
 int id_sem_init;
-int id_sem_writers;
+int id_sem_writers_block_id;
+int id_sem_readers_block_id;
 
 /* SIMULATION RUNNING PARAMETERS */
 volatile int executing = 1;
@@ -29,8 +30,8 @@ int ledger_full = 0;
 int active_nodes = 0;
 int active_users = 0;
 
-int initial_total_funds;
-int final_total_funds;
+unsigned long initial_total_funds;
+unsigned long final_total_funds;
 
 /**
  * MASTER PROCESS
@@ -44,20 +45,21 @@ int final_total_funds;
  * 8) Print final report
  */
 int main() {
-    char *args_node[12] = {NODE};
-    char *args_user[12] = {USER};
+    char *args_node[13] = {NODE};
+    char *args_user[14] = {USER};
     char index_node[3 * sizeof(int) + 1];
     char index_user[3 * sizeof(int) + 1];
     char id_shm_configuration_str[100 * sizeof(int) + 1];
     char id_shm_ledger_str[3 * sizeof(int) + 1];
     char id_shm_node_list_str[3 * sizeof(int) + 1];
     char id_shm_user_list_str[3 * sizeof(int) + 1];
-    char id_shm_last_block_id_str[3 * sizeof(int) + 1];
-    char id_shm_ledger_size_str[3 * sizeof(int) + 1];
+    char id_shm_block_id_str[3 * sizeof(int) + 1];
+    char is_shm_readers_block_id[3 * sizeof(int) + 1];
     char id_msg_node_user_str[3 * sizeof(int) + 1];
     char id_msg_user_node_str[3 * sizeof(int) + 1];
     char id_sem_init_str[3 * sizeof(int) + 1];
-    char id_sem_writers_str[3 * sizeof(int) + 1];
+    char id_sem_writers_block_id_str[3 * sizeof(int) + 1];
+    char id_sem_readers_block_id_str[3 * sizeof(int) + 1];
     key_t key;
     int i;
     int remaining_seconds;
@@ -65,7 +67,6 @@ int main() {
     pid_t user_pid;
     struct sigaction sa;
     struct timespec interval;
-    /*union semun sem_arg;*/
     interval.tv_sec = 1;
     interval.tv_nsec = 0;
 
@@ -108,21 +109,21 @@ int main() {
     user_list = shmat(id_shm_user_list, NULL, 0);
     EXIT_ON_ERROR
 
-    key = ftok("../makefile", PROJ_ID_SHM_LAST_BLOCK_ID);
+    key = ftok("../makefile", PROJ_ID_SHM_BLOCK_ID);
     EXIT_ON_ERROR
-    id_shm_last_block_id = shmget(key, sizeof(last_block_id), IPC_CREAT | 0666);
+    id_shm_block_id = shmget(key, sizeof(block_id), IPC_CREAT | 0666);
     EXIT_ON_ERROR
-    last_block_id = shmat(id_shm_last_block_id, NULL, 0);
+    block_id = shmat(id_shm_block_id, NULL, 0);
     EXIT_ON_ERROR
-    *last_block_id = 0;
+    *block_id = 0;
 
-    key = ftok("../makefile", PROJ_ID_SHM_LEDGER_SIZE);
+    key = ftok("../makefile", PROJ_ID_SHM_READERS_BLOCK_ID);
     EXIT_ON_ERROR
-    id_shm_ledger_size = shmget(key, sizeof(ledger_size), IPC_CREAT | 0666);
+    id_shm_readers_block_id = shmget(key, sizeof(readers_block_id), IPC_CREAT | 0666);
     EXIT_ON_ERROR
-    ledger_size = shmat(id_shm_ledger_size, NULL, 0);
+    readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
     EXIT_ON_ERROR
-    *ledger_size = 0;
+    *readers_block_id = 0;
 
     /* MESSAGE QUEUE CREATION */
     key = ftok("../makefile", PROJ_ID_MSG_NODE_USER);
@@ -144,45 +145,56 @@ int main() {
 
     key = ftok("../makefile", PROJ_ID_SEM_WRITERS);
     EXIT_ON_ERROR
-    id_sem_writers = semget(key, 1, IPC_CREAT | 0666);
+    id_sem_writers_block_id = semget(key, 1, IPC_CREAT | 0666);
     EXIT_ON_ERROR
-    set_semaphore_val(id_sem_writers, 0, 1);
+    set_semaphore_val(id_sem_writers_block_id, 0, 1);
+
+    key = ftok("../makefile", PROJ_ID_SEM_READERS_BLOCK_ID);
+    EXIT_ON_ERROR
+    id_sem_readers_block_id = semget(key, 1, IPC_CREAT | 0666);
+    EXIT_ON_ERROR
+    set_semaphore_val(id_sem_readers_block_id, 0, 1);
 
     /* Preparing cmd line arguments for execv */
     sprintf(id_shm_configuration_str, "%d", id_shm_configuration);
     sprintf(id_shm_ledger_str, "%d", id_shm_ledger);
     sprintf(id_shm_node_list_str, "%d", id_shm_node_list);
     sprintf(id_shm_user_list_str, "%d", id_shm_user_list);
-    sprintf(id_shm_last_block_id_str, "%d", id_shm_last_block_id);
-    sprintf(id_shm_ledger_size_str, "%d", id_shm_ledger_size);
+    sprintf(id_shm_block_id_str, "%d", id_shm_block_id);
+    sprintf(is_shm_readers_block_id, "%d", id_shm_readers_block_id);
 
     sprintf(id_msg_node_user_str, "%d", id_msg_node_user);
     sprintf(id_msg_user_node_str, "%d", id_msg_user_node);
 
     sprintf(id_sem_init_str, "%d", id_sem_init);
-    sprintf(id_sem_writers_str, "%d", id_sem_writers);
+    sprintf(id_sem_writers_block_id_str, "%d", id_sem_writers_block_id);
+    sprintf(id_sem_readers_block_id_str, "%d", id_sem_readers_block_id);
 
     args_node[2] = id_shm_configuration_str;
     args_node[3] = id_shm_ledger_str;
     args_node[4] = id_shm_node_list_str;
-    args_node[5] = id_shm_last_block_id_str;
-    args_node[6] = id_shm_ledger_size_str;
+    args_node[5] = id_shm_block_id_str;
+    args_node[6] = is_shm_readers_block_id;
     args_node[7] = id_msg_node_user_str;
     args_node[8] = id_msg_user_node_str;
     args_node[9] = id_sem_init_str;
-    args_node[10] = id_sem_writers_str;
-    args_node[11] = NULL;
+    args_node[10] = id_sem_writers_block_id_str;
+    args_node[11] = id_sem_readers_block_id_str;
+    args_node[12] = NULL;
 
     args_user[2] = id_shm_configuration_str;
     args_user[3] = id_shm_ledger_str;
     args_user[4] = id_shm_node_list_str;
     args_user[5] = id_shm_user_list_str;
-    args_user[6] = id_shm_last_block_id_str;
-    args_user[7] = id_msg_node_user_str;
-    args_user[8] = id_msg_user_node_str;
-    args_user[9] = id_sem_init_str;
-    args_user[10] = id_sem_writers_str;
-    args_user[11] = NULL;
+    args_user[6] = id_shm_block_id_str;
+    args_user[7] = is_shm_readers_block_id;
+
+    args_user[8] = id_msg_node_user_str;
+    args_user[9] = id_msg_user_node_str;
+    args_user[10] = id_sem_init_str;
+    args_user[11] = id_sem_writers_block_id_str;
+    args_user[12] = id_sem_readers_block_id_str;
+    args_user[13] = NULL;
 
     printf("Launching Node processes\n");
     for (i = 0; i < (*config).SO_NODES_NUM; i++) {
@@ -227,26 +239,32 @@ int main() {
         /* print_node_info();
          print_user_info();*/
         printf("Remaining seconds = %d\n", remaining_seconds--);
+        printf("config->SO_NODES_NUM = %d\n", config->SO_NODES_NUM);
+        printf("config->SO_USERS_NUM = %d\n", config->SO_USERS_NUM);
         nanosleep(&interval, NULL);
+
     }
 
     kill(0, SIGTERM);
     /*print_final_report();*/
     print_ledger(master_ledger);
 
-    /* for (i = 0; i < config->SO_NODES_NUM; i++) {
-         final_total_funds += node_list[i].balance;
-     }
+    for (i = 0; i < 10; i++) {
+        final_total_funds += node_list[i].balance;
+    }
 
-     for (i = 0; i < config->SO_USERS_NUM; i++) {
-         final_total_funds += user_list[i].balance;
-     }*/
+    for (i = 0; i < 100; i++) {
+        final_total_funds += user_list[i].balance;
+    }
+
+    printf("config->SO_NODES_NUM = %d\n", config->SO_NODES_NUM);
+    printf("config->SO_USERS_NUM = %d\n", config->SO_USERS_NUM);
 
     cleanIPC();
 
-    printf("Initial total funds = %d\n", initial_total_funds);
-    printf("Final total funds = %d\n", final_total_funds);
-    /*assert(initial_total_funds == final_total_funds);*/
+    printf("Initial total funds = %ld\n", initial_total_funds);
+    printf("Final total funds = %ld\n", final_total_funds);
+    /* assert(initial_total_funds == final_total_funds);*/
 
     return 0;
 }
@@ -254,7 +272,7 @@ int main() {
 void print_ledger(ledger *ledger) {
     int i;
     printf("Printing ledger\n");
-    for (i = 0; i < *ledger_size; i++) {
+    for (i = 0; i < *block_id; i++) {
         print_block(ledger->blocks[i]);
         printf("-----------------------------------------------------------------------------------------------------\n");
     }
@@ -272,7 +290,7 @@ void print_live_info() {
 void print_node_info() {
     int i;
     for (i = 0; i < config->SO_NODES_NUM; i++) {
-        printf("Node PID=%d, Balance=%d, Transaction Left=%d\n", user_list[i].pid, node_list[i].balance,
+        printf("Node PID=%d, Balance=%ld, Transaction Left=%ld\n", user_list[i].pid, node_list[i].balance,
                node_list[i].transactions_left);
     }
 }
@@ -280,7 +298,7 @@ void print_node_info() {
 void print_user_info() {
     int i;
     for (i = 0; i < config->SO_USERS_NUM; i++) {
-        printf("User PID=%d, Balance=%d\n", user_list[i].pid, user_list[i].balance);
+        printf("User PID=%d, Balance=%ld\n", user_list[i].pid, user_list[i].balance);
     }
 }
 
@@ -293,7 +311,7 @@ void print_final_report() {
     print_node_info();
     print_user_info();
     printf("User processes dead = %d\n", config->SO_USERS_NUM - active_users);
-    printf("Number of blocks in the ledger = %d\n", *last_block_id);
+    printf("Number of blocks in the ledger = %d\n", *block_id);
     printf("---------------------END---------------------\n");
 }
 
@@ -416,19 +434,20 @@ void cleanIPC() {
     shmdt(master_ledger);
     shmdt(node_list);
     shmdt(user_list);
-    shmdt(last_block_id);
-    shmdt(ledger_size);
+    shmdt(block_id);
+    shmdt(readers_block_id);
 
     shmctl(id_shm_configuration, IPC_RMID, NULL);
     shmctl(id_shm_ledger, IPC_RMID, NULL);
     shmctl(id_shm_node_list, IPC_RMID, NULL);
     shmctl(id_shm_user_list, IPC_RMID, NULL);
-    shmctl(id_shm_last_block_id, IPC_RMID, NULL);
-    shmctl(id_shm_ledger_size, IPC_RMID, NULL);
+    shmctl(id_shm_block_id, IPC_RMID, NULL);
+    shmctl(id_shm_readers_block_id, IPC_RMID, NULL);
 
     msgctl(id_msg_node_user, IPC_RMID, NULL);
     msgctl(id_msg_user_node, IPC_RMID, NULL);
 
     semctl(id_sem_init, 0, IPC_RMID);
-    semctl(id_sem_writers, 0, IPC_RMID);
+    semctl(id_sem_writers_block_id, 0, IPC_RMID);
+    semctl(id_sem_readers_block_id, 0, IPC_RMID);
 }
