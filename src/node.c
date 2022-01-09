@@ -1,7 +1,6 @@
 #include "../include/util.h"
 #include "../include/node.h"
 
-configuration (*config);
 ledger (*master_ledger);
 node_information (*node_list);
 user_information (*user_list);
@@ -9,7 +8,6 @@ int *block_id;
 int *readers_block_id;
 
 /* SHARED MEMORY */
-int id_shm_configuration;
 int id_shm_ledger;
 int id_shm_node_list;
 int id_shm_block_id;
@@ -26,6 +24,10 @@ int id_sem_writers_block_id;
 int id_sem_readers_block_id;
 
 int node_index;
+int so_tp_size;
+int so_min_trans_proc_nsec;
+int so_max_trans_proc_nsec;
+
 transaction_pool pool;
 int transaction_pool_size = 0;
 unsigned long balance = 0;
@@ -59,37 +61,37 @@ int main(int argc, char *argv[]) {
 
     node_index = atoi(argv[1]);
 
-    /* SHARED MEMORY ATTACHING */
-    id_shm_configuration = atoi(argv[2]);
-    config = shmat(id_shm_configuration, NULL, 0);
-    EXIT_ON_ERROR
+    so_tp_size = atoi(argv[2]);
+    so_min_trans_proc_nsec = atoi(argv[3]);
+    so_max_trans_proc_nsec = atoi(argv[4]);
 
-    id_shm_ledger = atoi(argv[3]);
+    /* SHARED MEMORY ATTACHING */
+    id_shm_ledger = atoi(argv[5]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_node_list = atoi(argv[4]);
+    id_shm_node_list = atoi(argv[6]);
     node_list = shmat(id_shm_node_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_block_id = atoi(argv[5]);
+    id_shm_block_id = atoi(argv[7]);
     block_id = shmat(id_shm_block_id, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_readers_block_id = atoi(argv[6]);
+    id_shm_readers_block_id = atoi(argv[8]);
     readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
     EXIT_ON_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_node_user = atoi(argv[7]);
-    id_msg_user_node = atoi(argv[8]);
+    id_msg_node_user = atoi(argv[9]);
+    id_msg_user_node = atoi(argv[10]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[9]);
-    id_sem_writers_block_id = atoi(argv[10]);
-    id_sem_readers_block_id = atoi(argv[11]);
+    id_sem_init = atoi(argv[11]);
+    id_sem_writers_block_id = atoi(argv[12]);
+    id_sem_readers_block_id = atoi(argv[13]);
 
-    pool.transactions = malloc(config->SO_TP_SIZE * sizeof(transaction));
+    pool.transactions = malloc(so_tp_size * sizeof(transaction));
 
     wait_for_master(id_sem_init);
 
@@ -118,7 +120,7 @@ int main(int argc, char *argv[]) {
 
 int add_to_transaction_pool(transaction t) {
     int added = 0;
-    if (transaction_pool_size < config->SO_TP_SIZE) {
+    if (transaction_pool_size < so_tp_size) {
         pool.transactions[transaction_pool_size] = t;
         transaction_pool_size++;
         added = 1;
@@ -174,8 +176,8 @@ block new_block(transaction transactions[]) {
     int total_reward = 0;
     int random;
     struct timespec interval;
-    int lower = config->SO_MIN_TRANS_PROC_NSEC;
-    int upper = config->SO_MAX_TRANS_PROC_NSEC;
+    int lower = so_min_trans_proc_nsec;
+    int upper = so_max_trans_proc_nsec;
     block block;
     struct timespec tp;
 
@@ -281,19 +283,16 @@ void clean_transaction_pool() {
 void handler(int signal) {
     switch (signal) {
         case SIGINT:
-            printf("Node received SIGINT\n");
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             break;
 
         case SIGTERM:
-            printf("Node received SIGTERM\n");
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             exit(0);
 
         case SIGQUIT:
-            printf("Node received SIGQUIT\n");
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             break;

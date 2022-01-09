@@ -17,7 +17,7 @@ void print_user_info();
 
 void print_final_report();
 
-configuration read_configuration();
+void read_configuration(configuration *);
 
 void cleanIPC();
 

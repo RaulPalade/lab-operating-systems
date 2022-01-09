@@ -33,6 +33,11 @@ user_master_message user_master_msg;
 transaction (*processing_transactions);
 transaction (*completed_transactions);
 int user_index;
+int so_retry;
+int so_min_trans_gen_nsec;
+int so_max_trans_gen_nsec;
+int so_nodes_num;
+int so_users_num;
 unsigned long balance = 0;
 int next_block_to_check = 0;
 int dying = 0;
@@ -65,41 +70,43 @@ int main(int argc, char *argv[]) {
     /* SHARED MEMORY CREATION */
     user_index = atoi(argv[1]);
 
-    /* SHARED MEMORY ATTACHING */
-    id_shm_configuration = atoi(argv[2]);
-    config = shmat(id_shm_configuration, NULL, 0);
-    EXIT_ON_ERROR
+    so_retry = atoi(argv[2]);
+    so_min_trans_gen_nsec = atoi(argv[3]);
+    so_max_trans_gen_nsec = atoi(argv[4]);
+    so_nodes_num = atoi(argv[5]);
+    so_users_num = atoi(argv[6]);
 
-    id_shm_ledger = atoi(argv[3]);
+    /* SHARED MEMORY ATTACHING */
+    id_shm_ledger = atoi(argv[7]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_node_list = atoi(argv[4]);
+    id_shm_node_list = atoi(argv[8]);
     node_list = shmat(id_shm_node_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_user_list = atoi(argv[5]);
+    id_shm_user_list = atoi(argv[9]);
     user_list = shmat(id_shm_user_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_block_id = atoi(argv[6]);
+    id_shm_block_id = atoi(argv[10]);
     block_id = shmat(id_shm_block_id, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_readers_block_id = atoi(argv[7]);
+    id_shm_readers_block_id = atoi(argv[11]);
     readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
     EXIT_ON_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_node_user = atoi(argv[8]);
-    id_msg_user_node = atoi(argv[9]);
+    id_msg_node_user = atoi(argv[12]);
+    id_msg_user_node = atoi(argv[13]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[10]);
-    id_sem_writers_block_id = atoi(argv[11]);
-    id_sem_readers_block_id = atoi(argv[12]);
+    id_sem_init = atoi(argv[14]);
+    id_sem_writers_block_id = atoi(argv[15]);
+    id_sem_readers_block_id = atoi(argv[16]);
 
-    balance = config->SO_BUDGET_INIT;
+    balance = user_list[user_index].balance;
     wait_for_master(id_sem_init);
 
     while (1) {
@@ -118,14 +125,14 @@ int main(int argc, char *argv[]) {
             user_node_msg.t = transaction;
             if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
                 dying++;
-                if (dying == config->SO_RETRY) {
+                if (dying == so_retry) {
                     update_info();
                     raise(SIGINT);
                 }
             }
 
-            lower = config->SO_MIN_TRANS_GEN_NSEC;
-            upper = config->SO_MAX_TRANS_GEN_NSEC;
+            lower = so_min_trans_gen_nsec;
+            upper = so_max_trans_gen_nsec;
             random = (rand() % (upper - lower + 1)) + lower;
             interval.tv_sec = 0;
             interval.tv_nsec = random;
@@ -233,7 +240,7 @@ void add_to_completed_list(transaction t) {
 pid_t get_random_user() {
     int random;
     int lower = 0;
-    int upper = config->SO_USERS_NUM;
+    int upper = so_users_num;
     struct timespec tp;
     /*struct timespec interval;
     interval.tv_sec = 1;*/
@@ -244,7 +251,7 @@ pid_t get_random_user() {
     /*nanosleep(&interval, NULL);*/
 
     while (user_list[random].pid == getpid() || user_list[random].pid == -1) {
-        if (random == config->SO_USERS_NUM - 1) {
+        if (random == so_users_num - 1) {
             random--;
         } else {
             random++;
@@ -256,7 +263,7 @@ pid_t get_random_user() {
     }
 
     /*if (user_list[random].pid == getpid()) {
-        if (random == config->SO_USERS_NUM - 1) {
+        if (random == so_users_num - 1) {
             random--;
         } else {
             random++;
@@ -269,7 +276,7 @@ pid_t get_random_user() {
 pid_t get_random_node() {
     int random;
     int lower = 0;
-    int upper = config->SO_NODES_NUM;
+    int upper = so_nodes_num;
     struct timespec tp;
 
     clock_gettime(CLOCK_REALTIME, &tp);
@@ -277,7 +284,7 @@ pid_t get_random_node() {
     random = (rand() % (upper - lower)) + lower;
 
     while (node_list[random].pid == -1) {
-        if (random == config->SO_NODES_NUM - 1) {
+        if (random == so_nodes_num - 1) {
             random--;
         } else {
             random++;
@@ -314,17 +321,14 @@ void update_info() {
 void handler(int signal) {
     switch (signal) {
         case SIGINT:
-            printf("User received SIGINT\n");
             kill(getppid(), SIGUSR1);
             break;
 
         case SIGTERM:
-            printf("User received SIGTERM\n");
             kill(getppid(), SIGUSR1);
             exit(0);
 
         case SIGQUIT:
-            printf("User received SIGQUIT\n");
             kill(getppid(), SIGUSR1);
             break;
 

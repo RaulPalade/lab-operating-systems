@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Werror -std=c89 -pedantic -D_GNU_SOURCE
+CFLAGS = -std=c89 -pedantic -D_GNU_SOURCE
 
 all: bin/master bin/node bin/user
 
