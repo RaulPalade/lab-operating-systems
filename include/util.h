@@ -18,11 +18,11 @@
 #include <sys/time.h>
 #include <assert.h>
 
-#define SO_BLOCK_SIZE 5
-#define SO_REGISTRY_SIZE 1000
-
-/*#define SO_BLOCK_SIZE 100
+/*#define SO_BLOCK_SIZE 5
 #define SO_REGISTRY_SIZE 1000*/
+
+#define SO_BLOCK_SIZE 100
+#define SO_REGISTRY_SIZE 1000
 
 /*#define SO_BLOCK_SIZE 10
 #define SO_REGISTRY_SIZE 10000*/
@@ -81,8 +81,8 @@ typedef struct {
     time_t timestamp;
     pid_t sender;
     pid_t receiver;
-    unsigned long amount;
-    unsigned long reward;
+    int amount;
+    int reward;
 } transaction;
 
 typedef struct {
@@ -107,18 +107,18 @@ typedef struct {
 
 typedef struct {
     long mtype;
-    unsigned long balance;
+    int balance;
 } user_master_message;
 
 typedef struct {
     pid_t pid;
-    unsigned long balance;
-    unsigned long transactions_left;
+    int balance;
+    int transactions_left;
 } node_information;
 
 typedef struct {
     pid_t pid;
-    unsigned long balance;
+    int balance;
 } user_information;
 
 int equal_transaction(transaction, transaction);
@@ -134,5 +134,7 @@ void print_transaction(transaction);
 void print_block(block);
 
 void print_all_transactions(transaction *);
+
+long get_timestamp_millis();
 
 #endif

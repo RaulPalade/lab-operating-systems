@@ -30,7 +30,7 @@ int so_max_trans_proc_nsec;
 
 transaction_pool pool;
 int transaction_pool_size = 0;
-unsigned long balance = 0;
+int balance = 0;
 int next_block_to_check = 0;
 
 user_node_message user_node_msg;
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
     wait_for_master(id_sem_init);
 
     while (1) {
-        msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), getpid(), 0);
+        msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 1, 0);
         success = add_to_transaction_pool(user_node_msg.t);
         if (!success) {
             user_node_msg.mtype = user_node_msg.t.sender;
@@ -105,16 +105,17 @@ int main(int argc, char *argv[]) {
             if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
                 transactions = extract_transactions_block_from_pool();
                 block = new_block(transactions);
+                printf("NODE %d block created\n", getpid());
                 success = add_to_ledger(master_ledger, block);
                 if (success) {
                     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
                         remove_from_transaction_pool(transactions[i]);
                     }
                 }
-                free(transactions);
             }
             update_info();
         }
+        printf("Node %d transaction pool size = %d\n", getpid(), transaction_pool_size);
     }
 }
 
@@ -150,22 +151,10 @@ int remove_from_transaction_pool(transaction t) {
 }
 
 transaction *extract_transactions_block_from_pool() {
-    int added = 0;
-    int lower = 0;
-    int upper = transaction_pool_size;
-    int random;
+    int i;
     transaction *transactions = malloc((SO_BLOCK_SIZE - 1) * sizeof(transaction));
-    struct timespec tp;
-
-    clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_nsec);
-
-    while (added < SO_BLOCK_SIZE - 1) {
-        random = (rand() % (upper - lower)) + lower;
-        if (!array_contains(transactions, pool.transactions[random])) {
-            transactions[added] = pool.transactions[random];
-            added++;
-        }
+    for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
+        transactions[i] = pool.transactions[i];
     }
 
     return transactions;
@@ -198,17 +187,13 @@ block new_block(transaction transactions[]) {
     return block;
 }
 
-transaction new_reward_transaction(unsigned long total_amount) {
-    struct timespec tp;
+transaction new_reward_transaction(int total_amount) {
     transaction transaction;
-
-    clock_gettime(CLOCK_REALTIME, &tp);
-    transaction.timestamp = tp.tv_sec;
+    transaction.timestamp = get_timestamp_millis();
     transaction.sender = SENDER_TRANSACTION_REWARD;
     transaction.receiver = getpid();
     transaction.amount = total_amount;
     transaction.reward = 0;
-
     return transaction;
 }
 
@@ -216,6 +201,9 @@ int add_to_ledger(ledger *ledger, block block) {
     int added = 0;
     lock(id_sem_writers_block_id);
     if (*block_id < SO_REGISTRY_SIZE) {
+        print_transaction_pool();
+        printf("Adding new block to ledger\n");
+        printf("Block id generated = %d\n", *block_id);
         block.id = *block_id;
         (*ledger).blocks[*block_id] = block;
         (*block_id)++;

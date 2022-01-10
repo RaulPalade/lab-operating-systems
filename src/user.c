@@ -38,7 +38,8 @@ int so_min_trans_gen_nsec;
 int so_max_trans_gen_nsec;
 int so_nodes_num;
 int so_users_num;
-unsigned long balance = 0;
+
+int balance = 0;
 int next_block_to_check = 0;
 int dying = 0;
 int n_processing_transactions = 0;
@@ -53,13 +54,16 @@ int n_completed_transactions = 0;
  * 5) Send transaction
  */
 int main(int argc, char *argv[]) {
-    /*int i;*/
+    int i;
     int lower;
     int upper;
-    long random;
+    int random;
     struct sigaction sa;
     struct timespec interval;
     transaction transaction;
+
+    processing_transactions = malloc(sizeof(transaction));
+    completed_transactions = malloc(sizeof(transaction));
 
     bzero(&sa, sizeof(sa));
     sa.sa_handler = handler;
@@ -110,10 +114,9 @@ int main(int argc, char *argv[]) {
     wait_for_master(id_sem_init);
 
     while (1) {
-
-        /*if (msgrcv(id_msg_node_user, &user_node_msg, sizeof(user_node_msg), getpid(), 0) != -1) {
+        /*if (msgrcv(id_msg_node_user, &user_node_msg, sizeof(user_node_msg), getpid(), IPC_NOWAIT) != -1) {
             for (i = 0; i < n_processing_transactions; i++) {
-                if(equal_transaction(user_node_msg.t, processing_transactions[i])) {
+                if (equal_transaction(user_node_msg.t, processing_transactions[i])) {
                     remove_from_processing_list(i);
                 }
             }
@@ -121,7 +124,7 @@ int main(int argc, char *argv[]) {
         calculate_balance();
         if (balance >= 2) {
             transaction = new_transaction();
-            user_node_msg.mtype = get_random_node();
+            user_node_msg.mtype = 1;
             user_node_msg.t = transaction;
             if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
                 dying++;
@@ -129,6 +132,8 @@ int main(int argc, char *argv[]) {
                     update_info();
                     raise(SIGINT);
                 }
+            } else {
+                add_to_processing_list(transaction);
             }
 
             lower = so_min_trans_gen_nsec;
@@ -136,9 +141,10 @@ int main(int argc, char *argv[]) {
             random = (rand() % (upper - lower + 1)) + lower;
             interval.tv_sec = 0;
             interval.tv_nsec = random;
-
-            update_info();
             nanosleep(&interval, NULL);
+            update_info();
+        } else {
+            /* printf("Balance < 2\n");*/
         }
     }
 }
@@ -155,14 +161,12 @@ int calculate_balance() {
         lock(id_sem_writers_block_id);
     }
     unlock(id_sem_readers_block_id);
-    for (i = next_block_to_check; i <= *block_id; i++) {
-        for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
+    for (i = 0; i <= *block_id; i++) {
+        for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
             if ((*master_ledger).blocks[i].transactions[j].sender == getpid()) {
-                balance -= ((*master_ledger).blocks[i].transactions[j].amount +
-                            (*master_ledger).blocks[i].transactions[j].reward);
-            }
-
-            if ((*master_ledger).blocks[i].transactions[j].receiver == getpid()) {
+                balance -= ((*master_ledger).blocks[i].transactions[j].amount);
+                balance -= ((*master_ledger).blocks[i].transactions[j].reward);
+            } else if ((*master_ledger).blocks[i].transactions[j].receiver == getpid()) {
                 balance += (*master_ledger).blocks[i].transactions[j].amount;
             }
 
@@ -175,10 +179,9 @@ int calculate_balance() {
             }
         }
     }
-    next_block_to_check = *block_id;
 
     lock(id_sem_readers_block_id);
-    (*readers_block_id)++;
+    (*readers_block_id)--;
     if (readers_block_id == 0) {
         unlock(id_sem_writers_block_id);
     }
@@ -206,8 +209,7 @@ transaction new_transaction() {
     toNode = (random * 20) / 100;
     toUser = random - toNode;
 
-    clock_gettime(CLOCK_REALTIME, &tp);
-    transaction.timestamp = tp.tv_sec;
+    transaction.timestamp = get_timestamp_millis();
     transaction.sender = getpid();
     transaction.receiver = get_random_user();
     transaction.amount = toUser;
@@ -242,13 +244,10 @@ pid_t get_random_user() {
     int lower = 0;
     int upper = so_users_num;
     struct timespec tp;
-    /*struct timespec interval;
-    interval.tv_sec = 1;*/
 
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_nsec);
     random = (rand() % (upper - lower)) + lower;
-    /*nanosleep(&interval, NULL);*/
 
     while (user_list[random].pid == getpid() || user_list[random].pid == -1) {
         if (random == so_users_num - 1) {
@@ -261,15 +260,6 @@ pid_t get_random_user() {
     if (random < 0) {
         printf("All users are dead\n");
     }
-
-    /*if (user_list[random].pid == getpid()) {
-        if (random == so_users_num - 1) {
-            random--;
-        } else {
-            random++;
-        }
-    }*/
-
     return user_list[random].pid;
 }
 
@@ -300,6 +290,7 @@ pid_t get_random_node() {
 
 void print_processing_list() {
     int i;
+    printf("Print processing list\n");
     print_table_header();
     for (i = 0; i < n_processing_transactions; i++) {
         print_transaction(processing_transactions[i]);
@@ -308,6 +299,7 @@ void print_processing_list() {
 
 void print_completed_list() {
     int i;
+    printf("Print completed list\n");
     print_table_header();
     for (i = 0; i < n_completed_transactions; i++) {
         print_transaction(completed_transactions[i]);
@@ -315,7 +307,7 @@ void print_completed_list() {
 }
 
 void update_info() {
-    user_list[user_index].balance = calculate_balance();
+    user_list[user_index].balance = balance;
 }
 
 void handler(int signal) {

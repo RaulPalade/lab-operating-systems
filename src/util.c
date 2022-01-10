@@ -37,7 +37,7 @@ void print_table_header() {
 }
 
 void print_transaction(transaction t) {
-    printf("%15ld %15d %15d %15ld %15ld\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward);
+    printf("%15ld %15d %15d %15d %15d\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward);
 }
 
 void print_block(block block) {
@@ -56,4 +56,10 @@ void print_all_transactions(transaction *transactions) {
         print_transaction(transactions[i]);
     }
     printf("-----------------------------------------------------------------------------------------------------\n");
+}
+
+long get_timestamp_millis() {
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    return t.tv_sec * 1000 + lround(t.tv_nsec / 1e6);
 }

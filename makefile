@@ -14,13 +14,13 @@ build/util.o: src/util.c include/util.h
 	$(CC) $(CFLAGS) -c src/util.c -o build/util.o
 
 bin/user: src/user.c build/util.o  build/semlib.o
-	$(CC) $(CFLAGS) src/user.c build/util.o build/semlib.o -o bin/user
+	$(CC) $(CFLAGS) src/user.c build/util.o build/semlib.o -o bin/user -lm
 
 bin/node: src/node.c build/util.o build/semlib.o
-	$(CC) $(CFLAGS) src/node.c build/util.o build/semlib.o -o bin/node
+	$(CC) $(CFLAGS) src/node.c build/util.o build/semlib.o -o bin/node -lm
 
 bin/master: app/master.c build/util.o build/semlib.o
-	$(CC) $(CFLAGS) app/master.c build/util.o build/semlib.o -o bin/master
+	$(CC) $(CFLAGS) app/master.c build/util.o build/semlib.o -o bin/master -lm
 
 run: all
 	bin/./master

@@ -15,7 +15,7 @@ transaction *extract_transactions_block_from_pool();
 
 block new_block(transaction []);
 
-transaction new_reward_transaction(unsigned long);
+transaction new_reward_transaction(int);
 
 int add_to_ledger(ledger *, block block);
 

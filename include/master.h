@@ -23,4 +23,8 @@ void cleanIPC();
 
 void handler(int);
 
+int calculate_user_balance(pid_t);
+
+int calculate_node_balance(pid_t);
+
 #endif
