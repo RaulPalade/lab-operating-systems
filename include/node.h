@@ -19,8 +19,6 @@ transaction new_reward_transaction(int);
 
 int add_to_ledger(ledger *, block block);
 
-int ledger_has_transaction(ledger *, transaction);
-
 void print_transaction_pool();
 
 void update_info();

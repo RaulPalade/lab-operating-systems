@@ -11,10 +11,6 @@ void print_ledger(ledger *);
 
 void print_live_info();
 
-void print_node_info();
-
-void print_user_info();
-
 void print_final_report();
 
 void read_configuration(configuration *);

@@ -100,27 +100,6 @@ typedef struct {
     transaction t;
 } user_node_message;
 
-typedef struct {
-    long mtype;
-    int args[2];
-} node_master_message;
-
-typedef struct {
-    long mtype;
-    int balance;
-} user_master_message;
-
-typedef struct {
-    pid_t pid;
-    int balance;
-    int transactions_left;
-} node_information;
-
-typedef struct {
-    pid_t pid;
-    int balance;
-} user_information;
-
 int equal_transaction(transaction, transaction);
 
 int array_contains(transaction *, transaction);

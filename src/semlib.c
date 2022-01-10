@@ -40,7 +40,7 @@ int lock(int semaphore) {
     struct sembuf sops;
     sops.sem_num = 0;
     sops.sem_op = -1;
-    sops.sem_flg = SEM_UNDO;
+    sops.sem_flg = 0;
     return semop(semaphore, &sops, 1);
 }
 
@@ -49,7 +49,7 @@ int unlock(int semaphore) {
     struct sembuf sops;
     sops.sem_num = 0;
     sops.sem_op = 1;
-    sops.sem_flg = SEM_UNDO;
+    sops.sem_flg = 0;
     return semop(semaphore, &sops, 1);
 }
 

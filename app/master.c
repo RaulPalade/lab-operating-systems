@@ -2,14 +2,12 @@
 
 configuration config;
 ledger (*master_ledger);
-node_information (*node_list);
-user_information (*user_list);
+pid_t *user_list;
 int *block_id;
 int *readers_block_id;
 
 /* SHARED MEMORY */
 int id_shm_ledger;
-int id_shm_node_list;
 int id_shm_user_list;
 int id_shm_block_id;
 int id_shm_readers_block_id;
@@ -18,7 +16,7 @@ int id_shm_readers_block_id;
 int id_msg_node_user;
 int id_msg_user_node;
 
-/* SEMAPHORE*/
+/* SEMAPHORE */
 int id_sem_init;
 int id_sem_writers_block_id;
 int id_sem_readers_block_id;
@@ -32,8 +30,7 @@ int active_users = 0;
 int initial_total_funds;
 int final_total_funds;
 
-int *node_pids;
-int *user_pids;
+pid_t *node_list;
 
 /**
  * MASTER PROCESS
@@ -49,8 +46,9 @@ int *user_pids;
 int main() {
     int node_balance;
     int user_balance;
-    char *args_node[15] = {NODE};
-    char *args_user[18] = {USER};
+
+    char *args_node[12] = {NODE};
+    char *args_user[17] = {USER};
     char index_node[3 * sizeof(int) + 1];
     char index_user[3 * sizeof(int) + 1];
 
@@ -58,6 +56,7 @@ int main() {
     char so_min_trans_proc_nsec[3 * sizeof(int) + 1];
     char so_max_trans_proc_nsec[3 * sizeof(int) + 1];
 
+    char so_budget_init[3 * sizeof(int) + 1];
     char so_retry[3 * sizeof(int) + 1];
     char so_min_trans_gen_nsec[3 * sizeof(int) + 1];
     char so_max_trans_gen_nsec[3 * sizeof(int) + 1];
@@ -65,10 +64,9 @@ int main() {
     char so_users_num[3 * sizeof(int) + 1];
 
     char id_shm_ledger_str[3 * sizeof(int) + 1];
-    char id_shm_node_list_str[3 * sizeof(int) + 1];
-    char id_shm_user_list_str[3 * sizeof(int) + 1];
     char id_shm_block_id_str[3 * sizeof(int) + 1];
-    char is_shm_readers_block_id[3 * sizeof(int) + 1];
+    char id_shm_readers_block_id_str[3 * sizeof(int) + 1];
+    char id_shm_user_list_str[3 * sizeof(int) + 1];
     char id_msg_node_user_str[3 * sizeof(int) + 1];
     char id_msg_user_node_str[3 * sizeof(int) + 1];
     char id_sem_init_str[3 * sizeof(int) + 1];
@@ -95,8 +93,7 @@ int main() {
 
     read_configuration(&config);
 
-    node_pids = malloc(config.SO_NODES_NUM * sizeof(pid_t));
-    user_pids = malloc(config.SO_USERS_NUM * sizeof(pid_t));
+    node_list = malloc(config.SO_NODES_NUM * sizeof(pid_t));
 
     /* SHARED MEMORY CREATION */
     key = ftok("../makefile", PROJ_ID_SHM_LEDGER);
@@ -106,19 +103,11 @@ int main() {
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    key = ftok("../makefile", PROJ_ID_SHM_NODE_LIST);
-    EXIT_ON_ERROR
-    id_shm_node_list = shmget(key, sizeof(node_information) * config.SO_NODES_NUM, IPC_CREAT | 0666);
-    EXIT_ON_ERROR
-    node_list = shmat(id_shm_node_list, NULL, 0);
-    EXIT_ON_ERROR
-
     key = ftok("../makefile", PROJ_ID_SHM_USER_LIST);
     EXIT_ON_ERROR
-    id_shm_user_list = shmget(key, sizeof(user_information) * config.SO_USERS_NUM, IPC_CREAT | 0666);
+    id_shm_user_list = shmget(key, sizeof(pid_t) * config.SO_USERS_NUM, IPC_CREAT | 0666);
     EXIT_ON_ERROR
     user_list = shmat(id_shm_user_list, NULL, 0);
-    EXIT_ON_ERROR
 
     key = ftok("../makefile", PROJ_ID_SHM_BLOCK_ID);
     EXIT_ON_ERROR
@@ -171,6 +160,7 @@ int main() {
     sprintf(so_min_trans_proc_nsec, "%d", config.SO_MIN_TRANS_PROC_NSEC);
     sprintf(so_max_trans_proc_nsec, "%d", config.SO_MAX_TRANS_PROC_NSEC);
 
+    sprintf(so_budget_init, "%d", config.SO_BUDGET_INIT);
     sprintf(so_retry, "%d", config.SO_RETRY);
     sprintf(so_min_trans_gen_nsec, "%d", config.SO_MIN_TRANS_GEN_NSEC);
     sprintf(so_max_trans_gen_nsec, "%d", config.SO_MAX_TRANS_GEN_NSEC);
@@ -178,10 +168,9 @@ int main() {
     sprintf(so_users_num, "%d", config.SO_USERS_NUM);
 
     sprintf(id_shm_ledger_str, "%d", id_shm_ledger);
-    sprintf(id_shm_node_list_str, "%d", id_shm_node_list);
     sprintf(id_shm_user_list_str, "%d", id_shm_user_list);
     sprintf(id_shm_block_id_str, "%d", id_shm_block_id);
-    sprintf(is_shm_readers_block_id, "%d", id_shm_readers_block_id);
+    sprintf(id_shm_readers_block_id_str, "%d", id_shm_readers_block_id);
 
     sprintf(id_msg_node_user_str, "%d", id_msg_node_user);
     sprintf(id_msg_user_node_str, "%d", id_msg_user_node);
@@ -194,34 +183,29 @@ int main() {
     args_node[3] = so_min_trans_proc_nsec;
     args_node[4] = so_max_trans_proc_nsec;
     args_node[5] = id_shm_ledger_str;
-    args_node[6] = id_shm_node_list_str;
-    args_node[7] = id_shm_block_id_str;
-    args_node[8] = is_shm_readers_block_id;
-    args_node[9] = id_msg_node_user_str;
-    args_node[10] = id_msg_user_node_str;
-    args_node[11] = id_sem_init_str;
-    args_node[12] = id_sem_writers_block_id_str;
-    args_node[13] = id_sem_readers_block_id_str;
-    args_node[14] = NULL;
+    args_node[6] = id_shm_block_id_str;
+    args_node[7] = id_msg_node_user_str;
+    args_node[8] = id_msg_user_node_str;
+    args_node[9] = id_sem_init_str;
+    args_node[10] = id_sem_writers_block_id_str;
+    args_node[11] = NULL;
 
-    args_user[2] = so_retry;
-    args_user[3] = so_min_trans_gen_nsec;
-    args_user[4] = so_max_trans_gen_nsec;
-    args_user[5] = so_nodes_num;
+    args_user[2] = so_budget_init;
+    args_user[3] = so_retry;
+    args_user[4] = so_min_trans_gen_nsec;
+    args_user[5] = so_max_trans_gen_nsec;
     args_user[6] = so_users_num;
     args_user[7] = id_shm_ledger_str;
-    args_user[8] = id_shm_node_list_str;
-    args_user[9] = id_shm_user_list_str;
-    args_user[10] = id_shm_block_id_str;
-    args_user[11] = is_shm_readers_block_id;
-    args_user[12] = id_msg_node_user_str;
-    args_user[13] = id_msg_user_node_str;
-    args_user[14] = id_sem_init_str;
-    args_user[15] = id_sem_writers_block_id_str;
-    args_user[16] = id_sem_readers_block_id_str;
-    args_user[17] = NULL;
+    args_user[8] = id_shm_user_list_str;
+    args_user[9] = id_shm_block_id_str;
+    args_user[10] = id_shm_readers_block_id_str;
+    args_user[11] = id_msg_node_user_str;
+    args_user[12] = id_msg_user_node_str;
+    args_user[13] = id_sem_init_str;
+    args_user[14] = id_sem_writers_block_id_str;
+    args_user[15] = id_sem_readers_block_id_str;
+    args_user[16] = NULL;
 
-    printf("Launching Node processes\n");
     for (i = 0; i < config.SO_NODES_NUM; i++) {
         switch (node_pid = fork()) {
             case -1:
@@ -233,13 +217,11 @@ int main() {
                 execv("node", args_node);
 
             default:
-                node_pids[i] = node_pid;
+                node_list[i] = node_pid;
                 active_nodes++;
-                node_list[i].pid = node_pid;
         }
     }
 
-    printf("Launching User processes\n");
     for (i = 0; i < config.SO_USERS_NUM; i++) {
         switch (user_pid = fork()) {
             case -1:
@@ -251,62 +233,38 @@ int main() {
                 execv("user", args_user);
 
             default:
-                user_pids[i] = user_pid;
+                user_list[i] = user_pid;
                 initial_total_funds += 1000;
                 active_users++;
-                user_list[i].pid = user_pid;
-                user_list[i].balance = config.SO_BUDGET_INIT;
         }
     }
 
-    printf("Starting timer right now\n");
     remaining_seconds = config.SO_SIM_SEC;
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
-        /*print_node_info();
-        print_user_info();*/
-        /*for (i = 0; i < config.SO_NODES_NUM; i++) {
-            node_balance = calculate_node_balance(node_pids[i]);
-            printf("Node %d balance = %d\n", node_pids[i], node_balance);
-        }
-
-        for (i = 0; i < config.SO_USERS_NUM; i++) {
-            user_balance = calculate_user_balance(user_pids[i]);
-            printf("User %d balance = %d\n", user_pids[i], user_balance);
-        }*/
         printf("%d\n", remaining_seconds--);
         nanosleep(&interval, NULL);
-
     }
 
     kill(0, SIGTERM);
     print_ledger(master_ledger);
     print_final_report();
 
-    /*for (i = 0; i < config.SO_NODES_NUM; i++) {
-        final_total_funds += node_list[i].balance;
+    for (i = 0; i < config.SO_NODES_NUM; i++) {
+        node_balance = calculate_node_balance(node_list[i]);
+        printf("Node %d balance = %d\n", node_list[i], node_balance);
     }
 
     for (i = 0; i < config.SO_USERS_NUM; i++) {
-        final_total_funds += user_list[i].balance;
-    }*/
-
-    /*for (i = 0; i < config.SO_NODES_NUM; i++) {
-        node_balance = calculate_node_balance(node_pids[i]);
-        printf("Node %d balance = %d\n", node_pids[i], node_balance);
+        user_balance = calculate_user_balance(user_list[i]);
+        printf("User %d balance = %d\n", user_list[i], user_balance);
     }
-
-    for (i = 0; i < config.SO_USERS_NUM; i++) {
-        user_balance = calculate_user_balance(user_pids[i]);
-        printf("User %d balance = %d\n", user_pids[i], user_balance);
-    }*/
 
     cleanIPC();
 
     printf("\nInitial total funds = %d\n", initial_total_funds);
     printf("\nFinal total funds = %d\n", final_total_funds);
-    /* assert(initial_total_funds == final_total_funds);*/
 
     return 0;
 }
@@ -315,6 +273,7 @@ int calculate_user_balance(pid_t user) {
     int user_balance = config.SO_BUDGET_INIT;
     int i;
     int j;
+    lock(id_sem_writers_block_id);
     for (i = 0; i <= *block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
             if ((*master_ledger).blocks[i].transactions[j].sender == user) {
@@ -325,6 +284,7 @@ int calculate_user_balance(pid_t user) {
             }
         }
     }
+    unlock(id_sem_writers_block_id);
 
     return user_balance;
 }
@@ -333,6 +293,7 @@ int calculate_node_balance(pid_t node) {
     int node_balance = 0;
     int i;
     int j = SO_BLOCK_SIZE - 1;
+    lock(id_sem_writers_block_id);
     for (i = 0; i <= *block_id; i++) {
         if ((*master_ledger).blocks[i].transactions[j].receiver == node) {
             print_transaction((*master_ledger).blocks[i].transactions[j]);
@@ -340,6 +301,7 @@ int calculate_node_balance(pid_t node) {
         }
         j += SO_BLOCK_SIZE - 1;
     }
+    unlock(id_sem_writers_block_id);
 
     return node_balance;
 }
@@ -348,10 +310,12 @@ int calculate_node_balance(pid_t node) {
 void print_ledger(ledger *ledger) {
     int i;
     printf("Printing ledger\n");
+    lock(id_sem_writers_block_id);
     for (i = 0; i <= *block_id; i++) {
         print_block(ledger->blocks[i]);
         printf("-----------------------------------------------------------------------------------------------------\n");
     }
+    unlock(id_sem_writers_block_id);
     printf("-----------------------------------------------------------------------------------------------------\n");
 }
 
@@ -359,25 +323,6 @@ void print_live_info() {
     printf("-----------------------------------------------------------------------------------------------------\n");
     printf("%10s\n", "ACTIVE USERS");
     printf("%10d\n", active_users);
-    print_node_info();
-    print_user_info();
-}
-
-void print_node_info() {
-    int i;
-    printf("\n");
-    for (i = 0; i < config.SO_NODES_NUM; i++) {
-        printf("Node PID=%d, Balance=%d, Transaction Left=%d\n", user_list[i].pid, node_list[i].balance,
-               node_list[i].transactions_left);
-    }
-}
-
-void print_user_info() {
-    int i;
-    printf("\n");
-    for (i = 0; i < config.SO_USERS_NUM; i++) {
-        printf("User PID=%d, Balance=%d\n", user_list[i].pid, user_list[i].balance);
-    }
 }
 
 void print_final_report() {
@@ -386,8 +331,6 @@ void print_final_report() {
     printf("Executing = %d\n", executing);
     printf("Active users = %d\n", active_users);
     printf("Ledger full = %d\n", ledger_full);
-    print_node_info();
-    print_user_info();
     printf("User processes dead = %d\n", config.SO_USERS_NUM - active_users);
     printf("Number of blocks in the ledger = %d\n", *block_id);
     printf("---------------------END---------------------\n");
@@ -494,14 +437,14 @@ void handler(int signal) {
 }
 
 void cleanIPC() {
+    free(node_list);
+
     shmdt(master_ledger);
-    shmdt(node_list);
     shmdt(user_list);
     shmdt(block_id);
     shmdt(readers_block_id);
 
     shmctl(id_shm_ledger, IPC_RMID, NULL);
-    shmctl(id_shm_node_list, IPC_RMID, NULL);
     shmctl(id_shm_user_list, IPC_RMID, NULL);
     shmctl(id_shm_block_id, IPC_RMID, NULL);
     shmctl(id_shm_readers_block_id, IPC_RMID, NULL);

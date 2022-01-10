@@ -2,17 +2,11 @@
 #include "../include/node.h"
 
 ledger (*master_ledger);
-node_information (*node_list);
-user_information (*user_list);
 int *block_id;
-int *readers_block_id;
 
 /* SHARED MEMORY */
 int id_shm_ledger;
-int id_shm_node_list;
 int id_shm_block_id;
-int id_shm_ledger_size;
-int id_shm_readers_block_id;
 
 /* MESSAGE QUEUE */
 int id_msg_node_user;
@@ -21,7 +15,6 @@ int id_msg_user_node;
 /* SEMAPHORE*/
 int id_sem_init;
 int id_sem_writers_block_id;
-int id_sem_readers_block_id;
 
 int node_index;
 int so_tp_size;
@@ -31,9 +24,9 @@ int so_max_trans_proc_nsec;
 transaction_pool pool;
 int transaction_pool_size = 0;
 int balance = 0;
-int next_block_to_check = 0;
 
 user_node_message user_node_msg;
+user_node_message node_user_msg;
 struct timeval timer;
 
 /**
@@ -70,26 +63,17 @@ int main(int argc, char *argv[]) {
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_node_list = atoi(argv[6]);
-    node_list = shmat(id_shm_node_list, NULL, 0);
-    EXIT_ON_ERROR
-
-    id_shm_block_id = atoi(argv[7]);
+    id_shm_block_id = atoi(argv[6]);
     block_id = shmat(id_shm_block_id, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_readers_block_id = atoi(argv[8]);
-    readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
-    EXIT_ON_ERROR
-
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_node_user = atoi(argv[9]);
-    id_msg_user_node = atoi(argv[10]);
+    id_msg_node_user = atoi(argv[7]);
+    id_msg_user_node = atoi(argv[8]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[11]);
-    id_sem_writers_block_id = atoi(argv[12]);
-    id_sem_readers_block_id = atoi(argv[13]);
+    id_sem_init = atoi(argv[9]);
+    id_sem_writers_block_id = atoi(argv[10]);
 
     pool.transactions = malloc(so_tp_size * sizeof(transaction));
 
@@ -105,7 +89,6 @@ int main(int argc, char *argv[]) {
             if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
                 transactions = extract_transactions_block_from_pool();
                 block = new_block(transactions);
-                printf("NODE %d block created\n", getpid());
                 success = add_to_ledger(master_ledger, block);
                 if (success) {
                     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
@@ -113,9 +96,8 @@ int main(int argc, char *argv[]) {
                     }
                 }
             }
-            update_info();
         }
-        printf("Node %d transaction pool size = %d\n", getpid(), transaction_pool_size);
+        printf("NODE %d Transaction pool size = %d\n", getpid(), transaction_pool_size);
     }
 }
 
@@ -125,8 +107,6 @@ int add_to_transaction_pool(transaction t) {
         pool.transactions[transaction_pool_size] = t;
         transaction_pool_size++;
         added = 1;
-    } else {
-        printf(ANSI_COLOR_RED "Transaction pool size exceeded\n" ANSI_COLOR_RESET);
     }
 
     return added;
@@ -202,8 +182,6 @@ int add_to_ledger(ledger *ledger, block block) {
     lock(id_sem_writers_block_id);
     if (*block_id < SO_REGISTRY_SIZE) {
         print_transaction_pool();
-        printf("Adding new block to ledger\n");
-        printf("Block id generated = %d\n", *block_id);
         block.id = *block_id;
         (*ledger).blocks[*block_id] = block;
         (*block_id)++;
@@ -212,46 +190,17 @@ int add_to_ledger(ledger *ledger, block block) {
         added = 1;
     } else {
         kill(getppid(), SIGUSR2);
-        printf(ANSI_COLOR_RED "Ledger size exceeded\n" ANSI_COLOR_RESET);
     }
 
     return added;
 }
 
-
-/* Useless, when a set of transactions are extracted, they are
-   not in the ledger because when a block is added to ledger
-   automatically those transactions are removed from pool */
-int ledger_has_transaction(ledger *ledger, transaction t) {
-    int found = 0;
-    int i;
-    int j;
-
-    for (i = 0; i < *block_id && !found; i++) {
-        for (j = 0; j < SO_BLOCK_SIZE; j++) {
-            if ((*ledger).blocks[i].transactions[j].timestamp == t.timestamp &&
-                (*ledger).blocks[i].transactions[j].sender == t.sender) {
-                found = 1;
-            }
-        }
-        next_block_to_check++;
-    }
-
-    return found;
-}
-
 void print_transaction_pool() {
     int i;
-    printf("Printing transaction pool\n");
     print_table_header();
     for (i = 0; i < transaction_pool_size; i++) {
         print_transaction(pool.transactions[i]);
     }
-}
-
-void update_info() {
-    node_list[node_index].balance = balance;
-    node_list[node_index].transactions_left = transaction_pool_size;
 }
 
 void clean_transaction_pool() {

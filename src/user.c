@@ -3,15 +3,12 @@
 
 configuration (*config);
 ledger (*master_ledger);
-node_information (*node_list);
-user_information (*user_list);
+pid_t (*user_list);
 int *block_id;
 int *readers_block_id;
 
 /* SHARED MEMORY */
-int id_shm_configuration;
 int id_shm_ledger;
-int id_shm_node_list;
 int id_shm_user_list;
 int id_shm_block_id;
 int id_shm_readers_block_id;
@@ -27,23 +24,20 @@ int id_sem_readers_block_id;
 
 /* MESSAGE DATA STRUCTURE */
 user_node_message user_node_msg;
-user_master_message user_master_msg;
+user_node_message node_user_msg;
 
 /* INTERNAL VARIABLES */
 transaction (*processing_transactions);
-transaction (*completed_transactions);
 int user_index;
+int so_budget_init;
 int so_retry;
 int so_min_trans_gen_nsec;
 int so_max_trans_gen_nsec;
-int so_nodes_num;
 int so_users_num;
 
 int balance = 0;
-int next_block_to_check = 0;
 int dying = 0;
 int n_processing_transactions = 0;
-int n_completed_transactions = 0;
 
 /**
  * USER PROCESS
@@ -54,7 +48,6 @@ int n_completed_transactions = 0;
  * 5) Send transaction
  */
 int main(int argc, char *argv[]) {
-    int i;
     int lower;
     int upper;
     int random;
@@ -63,7 +56,6 @@ int main(int argc, char *argv[]) {
     transaction transaction;
 
     processing_transactions = malloc(sizeof(transaction));
-    completed_transactions = malloc(sizeof(transaction));
 
     bzero(&sa, sizeof(sa));
     sa.sa_handler = handler;
@@ -74,10 +66,11 @@ int main(int argc, char *argv[]) {
     /* SHARED MEMORY CREATION */
     user_index = atoi(argv[1]);
 
-    so_retry = atoi(argv[2]);
-    so_min_trans_gen_nsec = atoi(argv[3]);
-    so_max_trans_gen_nsec = atoi(argv[4]);
-    so_nodes_num = atoi(argv[5]);
+    so_budget_init = atoi(argv[2]);
+    balance = so_budget_init;
+    so_retry = atoi(argv[3]);
+    so_min_trans_gen_nsec = atoi(argv[4]);
+    so_max_trans_gen_nsec = atoi(argv[5]);
     so_users_num = atoi(argv[6]);
 
     /* SHARED MEMORY ATTACHING */
@@ -85,32 +78,27 @@ int main(int argc, char *argv[]) {
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_node_list = atoi(argv[8]);
-    node_list = shmat(id_shm_node_list, NULL, 0);
-    EXIT_ON_ERROR
-
-    id_shm_user_list = atoi(argv[9]);
+    id_shm_user_list = atoi(argv[8]);
     user_list = shmat(id_shm_user_list, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_block_id = atoi(argv[10]);
+    id_shm_block_id = atoi(argv[9]);
     block_id = shmat(id_shm_block_id, NULL, 0);
     EXIT_ON_ERROR
 
-    id_shm_readers_block_id = atoi(argv[11]);
+    id_shm_readers_block_id = atoi(argv[10]);
     readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
     EXIT_ON_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_node_user = atoi(argv[12]);
-    id_msg_user_node = atoi(argv[13]);
+    id_msg_node_user = atoi(argv[11]);
+    id_msg_user_node = atoi(argv[12]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[14]);
-    id_sem_writers_block_id = atoi(argv[15]);
-    id_sem_readers_block_id = atoi(argv[16]);
+    id_sem_init = atoi(argv[13]);
+    id_sem_writers_block_id = atoi(argv[14]);
+    id_sem_readers_block_id = atoi(argv[15]);
 
-    balance = user_list[user_index].balance;
     wait_for_master(id_sem_init);
 
     while (1) {
@@ -126,10 +114,9 @@ int main(int argc, char *argv[]) {
             transaction = new_transaction();
             user_node_msg.mtype = 1;
             user_node_msg.t = transaction;
-            if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
+            if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), IPC_NOWAIT)) < 0) {
                 dying++;
                 if (dying == so_retry) {
-                    update_info();
                     raise(SIGINT);
                 }
             } else {
@@ -142,9 +129,6 @@ int main(int argc, char *argv[]) {
             interval.tv_sec = 0;
             interval.tv_nsec = random;
             nanosleep(&interval, NULL);
-            update_info();
-        } else {
-            /* printf("Balance < 2\n");*/
         }
     }
 }
@@ -173,7 +157,6 @@ int calculate_balance() {
             for (y = 0; y < n_processing_transactions && !equal; y++) {
                 if (equal_transaction((*master_ledger).blocks[i].transactions[j], processing_transactions[y])) {
                     equal = 1;
-                    add_to_completed_list(processing_transactions[y]);
                     remove_from_processing_list(y);
                 }
             }
@@ -233,12 +216,6 @@ void remove_from_processing_list(int position) {
     processing_transactions = realloc(processing_transactions, (n_processing_transactions) * sizeof(transaction));
 }
 
-void add_to_completed_list(transaction t) {
-    completed_transactions = realloc(completed_transactions, (n_completed_transactions + 1) * sizeof(transaction));
-    completed_transactions[n_completed_transactions] = t;
-    n_completed_transactions++;
-}
-
 pid_t get_random_user() {
     int random;
     int lower = 0;
@@ -249,7 +226,7 @@ pid_t get_random_user() {
     srand(tp.tv_nsec);
     random = (rand() % (upper - lower)) + lower;
 
-    while (user_list[random].pid == getpid() || user_list[random].pid == -1) {
+    while (user_list[random] == getpid() || user_list[random] == -1) {
         if (random == so_users_num - 1) {
             random--;
         } else {
@@ -257,57 +234,15 @@ pid_t get_random_user() {
         }
     }
 
-    if (random < 0) {
-        printf("All users are dead\n");
-    }
-    return user_list[random].pid;
-}
-
-pid_t get_random_node() {
-    int random;
-    int lower = 0;
-    int upper = so_nodes_num;
-    struct timespec tp;
-
-    clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_nsec);
-    random = (rand() % (upper - lower)) + lower;
-
-    while (node_list[random].pid == -1) {
-        if (random == so_nodes_num - 1) {
-            random--;
-        } else {
-            random++;
-        }
-    }
-
-    if (random < 0) {
-        printf("All nodes are dead\n");
-    }
-
-    return node_list[random].pid;
+    return user_list[random];
 }
 
 void print_processing_list() {
     int i;
-    printf("Print processing list\n");
     print_table_header();
     for (i = 0; i < n_processing_transactions; i++) {
         print_transaction(processing_transactions[i]);
     }
-}
-
-void print_completed_list() {
-    int i;
-    printf("Print completed list\n");
-    print_table_header();
-    for (i = 0; i < n_completed_transactions; i++) {
-        print_transaction(completed_transactions[i]);
-    }
-}
-
-void update_info() {
-    user_list[user_index].balance = balance;
 }
 
 void handler(int signal) {
