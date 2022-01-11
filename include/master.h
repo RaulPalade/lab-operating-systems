@@ -7,7 +7,7 @@
 #define NODE "node"
 #define USER "user"
 
-void print_ledger(ledger *);
+void print_ledger();
 
 void print_live_info();
 

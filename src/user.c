@@ -147,15 +147,15 @@ int calculate_balance() {
     unlock(id_sem_readers_block_id);
     for (i = 0; i <= *block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
-            if ((*master_ledger).blocks[i].transactions[j].sender == getpid()) {
-                balance -= ((*master_ledger).blocks[i].transactions[j].amount);
-                balance -= ((*master_ledger).blocks[i].transactions[j].reward);
-            } else if ((*master_ledger).blocks[i].transactions[j].receiver == getpid()) {
-                balance += (*master_ledger).blocks[i].transactions[j].amount;
+            if (master_ledger->blocks[i].transactions[j].sender == getpid()) {
+                balance -= master_ledger->blocks[i].transactions[j].amount;
+                balance -= master_ledger->blocks[i].transactions[j].reward;
+            } else if (master_ledger->blocks[i].transactions[j].receiver == getpid()) {
+                balance += master_ledger->blocks[i].transactions[j].amount;
             }
 
             for (y = 0; y < n_processing_transactions && !equal; y++) {
-                if (equal_transaction((*master_ledger).blocks[i].transactions[j], processing_transactions[y])) {
+                if (equal_transaction(master_ledger->blocks[i].transactions[j], processing_transactions[y])) {
                     equal = 1;
                     remove_from_processing_list(y);
                 }

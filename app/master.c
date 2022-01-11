@@ -44,6 +44,7 @@ pid_t *node_list;
  * 8) Print final report
  */
 int main() {
+    int i;
     int node_balance;
     int user_balance;
 
@@ -73,7 +74,6 @@ int main() {
     char id_sem_writers_block_id_str[3 * sizeof(int) + 1];
     char id_sem_readers_block_id_str[3 * sizeof(int) + 1];
     key_t key;
-    int i;
     int remaining_seconds;
     pid_t node_pid;
     pid_t user_pid;
@@ -248,10 +248,10 @@ int main() {
     }
 
     kill(0, SIGTERM);
-    print_ledger(master_ledger);
+
     print_final_report();
 
-    for (i = 0; i < config.SO_NODES_NUM; i++) {
+    /*for (i = 0; i < config.SO_NODES_NUM; i++) {
         node_balance = calculate_node_balance(node_list[i]);
         printf("Node %d balance = %d\n", node_list[i], node_balance);
     }
@@ -259,7 +259,9 @@ int main() {
     for (i = 0; i < config.SO_USERS_NUM; i++) {
         user_balance = calculate_user_balance(user_list[i]);
         printf("User %d balance = %d\n", user_list[i], user_balance);
-    }
+    }*/
+
+    print_ledger();
 
     cleanIPC();
 
@@ -276,11 +278,11 @@ int calculate_user_balance(pid_t user) {
     lock(id_sem_writers_block_id);
     for (i = 0; i <= *block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
-            if ((*master_ledger).blocks[i].transactions[j].sender == user) {
-                user_balance -= (*master_ledger).blocks[i].transactions[j].amount;
-                user_balance -= (*master_ledger).blocks[i].transactions[j].reward;
-            } else if ((*master_ledger).blocks[i].transactions[j].receiver == user) {
-                user_balance += (*master_ledger).blocks[i].transactions[j].reward;
+            if (master_ledger->blocks[i].transactions[j].sender == user) {
+                user_balance -= master_ledger->blocks[i].transactions[j].amount;
+                user_balance -= master_ledger->blocks[i].transactions[j].reward;
+            } else if (master_ledger->blocks[i].transactions[j].receiver == user) {
+                user_balance += master_ledger->blocks[i].transactions[j].reward;
             }
         }
     }
@@ -295,9 +297,8 @@ int calculate_node_balance(pid_t node) {
     int j = SO_BLOCK_SIZE - 1;
     lock(id_sem_writers_block_id);
     for (i = 0; i <= *block_id; i++) {
-        if ((*master_ledger).blocks[i].transactions[j].receiver == node) {
-            print_transaction((*master_ledger).blocks[i].transactions[j]);
-            node_balance += (*master_ledger).blocks[i].transactions[j].reward;
+        if (master_ledger->blocks[i].transactions[j].receiver == node) {
+            node_balance += master_ledger->blocks[i].transactions[j].reward;
         }
         j += SO_BLOCK_SIZE - 1;
     }
@@ -307,12 +308,12 @@ int calculate_node_balance(pid_t node) {
 }
 
 
-void print_ledger(ledger *ledger) {
+void print_ledger() {
     int i;
     printf("Printing ledger\n");
     lock(id_sem_writers_block_id);
     for (i = 0; i <= *block_id; i++) {
-        print_block(ledger->blocks[i]);
+        print_block(master_ledger->blocks[i]);
         printf("-----------------------------------------------------------------------------------------------------\n");
     }
     unlock(id_sem_writers_block_id);

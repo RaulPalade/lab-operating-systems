@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
             if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
                 transactions = extract_transactions_block_from_pool();
                 block = new_block(transactions);
-                success = add_to_ledger(master_ledger, block);
+                success = add_to_ledger(block);
                 if (success) {
                     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
                         remove_from_transaction_pool(transactions[i]);
@@ -97,7 +97,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-        printf("NODE %d Transaction pool size = %d\n", getpid(), transaction_pool_size);
     }
 }
 
@@ -107,6 +106,8 @@ int add_to_transaction_pool(transaction t) {
         pool.transactions[transaction_pool_size] = t;
         transaction_pool_size++;
         added = 1;
+    } else {
+        printf("TP FULL\n");
     }
 
     return added;
@@ -177,20 +178,19 @@ transaction new_reward_transaction(int total_amount) {
     return transaction;
 }
 
-int add_to_ledger(ledger *ledger, block block) {
+int add_to_ledger(block block) {
     int added = 0;
     lock(id_sem_writers_block_id);
     if (*block_id < SO_REGISTRY_SIZE) {
-        print_transaction_pool();
         block.id = *block_id;
-        (*ledger).blocks[*block_id] = block;
+        master_ledger->blocks[*block_id] = block;
         (*block_id)++;
-        unlock(id_sem_writers_block_id);
         balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
         added = 1;
     } else {
         kill(getppid(), SIGUSR2);
     }
+    unlock(id_sem_writers_block_id);
 
     return added;
 }
