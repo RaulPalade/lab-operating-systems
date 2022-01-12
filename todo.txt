@@ -1,0 +1,5 @@
+1) Aggiungere le maschere dei segnali
+2) Aggiungere transazione da segnale
+3) Gestire utenti morti in modo che un utente non venga estratto da un'altro => FATTO, aggiungere semaforo per la modifica della lista pid
+4) Migliorare la gestione dei semafori
+5) Aggiungere l'ordinamento degli utenti in base al bilancio nella stampa del master

@@ -7,6 +7,10 @@
 #define NODE "node"
 #define USER "user"
 
+int calculate_user_balance(pid_t user);
+
+int calculate_node_balance(pid_t node);
+
 void print_ledger();
 
 void print_live_info();
@@ -18,9 +22,5 @@ void read_configuration(configuration *);
 void cleanIPC();
 
 void handler(int);
-
-int calculate_user_balance(pid_t);
-
-int calculate_node_balance(pid_t);
 
 #endif

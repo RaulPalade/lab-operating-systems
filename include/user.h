@@ -15,4 +15,6 @@ void print_processing_list();
 
 void update_info();
 
+void die();
+
 void handler(int);

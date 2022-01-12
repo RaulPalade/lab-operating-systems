@@ -84,6 +84,7 @@ int main() {
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
+    sigaction(SIGCHLD, &sa, NULL);
     sigaction(SIGALRM, &sa, 0);
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
@@ -244,12 +245,11 @@ int main() {
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
         printf("%d\n", remaining_seconds--);
+        printf("Active users = %d\n", active_users);
         nanosleep(&interval, NULL);
     }
 
     kill(0, SIGTERM);
-
-    print_final_report();
 
     /*for (i = 0; i < config.SO_NODES_NUM; i++) {
         node_balance = calculate_node_balance(node_list[i]);
@@ -262,6 +262,7 @@ int main() {
     }*/
 
     print_ledger();
+    print_final_report();
 
     cleanIPC();
 
@@ -406,7 +407,31 @@ void read_configuration(configuration *config) {
 }
 
 void handler(int signal) {
+    pid_t p;
+    int status;
+
     switch (signal) {
+        case SIGCHLD:
+            /* loop as long as there are children to process */
+            while (1) {
+                /* retrieve child process ID (if any) */
+                p = waitpid(-1, &status, WNOHANG);
+
+                /* check for conditions causing the loop to terminate */
+                if (p == -1) {
+                    /* continue on interruption (EINTR) */
+                    if (errno == EINTR) {
+                        continue;
+                    }
+                    /* break on anything else (EINVAL or ECHILD according to manpage) */
+                    break;
+                } else if (p == 0) {
+                    /* no more children to process, so break */
+                    break;
+                }
+            }
+            break;
+
         case SIGALRM:
             executing = 0;
             break;
@@ -424,8 +449,8 @@ void handler(int signal) {
             break;
 
         case SIGUSR1:
+            printf("New user death\n");
             active_users--;
-            /* Rimuovere utente dalla lista degli utenti */
             break;
 
         case SIGUSR2:

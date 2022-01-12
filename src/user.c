@@ -114,11 +114,8 @@ int main(int argc, char *argv[]) {
             transaction = new_transaction();
             user_node_msg.mtype = 1;
             user_node_msg.t = transaction;
-            if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), IPC_NOWAIT)) < 0) {
+            if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
                 dying++;
-                if (dying == so_retry) {
-                    raise(SIGINT);
-                }
             } else {
                 add_to_processing_list(transaction);
             }
@@ -129,6 +126,12 @@ int main(int argc, char *argv[]) {
             interval.tv_sec = 0;
             interval.tv_nsec = random;
             nanosleep(&interval, NULL);
+        } else {
+            dying++;
+        }
+
+        if (dying == so_retry) {
+            die();
         }
     }
 }
@@ -202,7 +205,8 @@ transaction new_transaction() {
 }
 
 void add_to_processing_list(transaction t) {
-    processing_transactions = realloc(processing_transactions, (n_processing_transactions + 1) * sizeof(transaction));
+    processing_transactions = realloc(processing_transactions,
+                                      (n_processing_transactions + 1) * sizeof(transaction));
     processing_transactions[n_processing_transactions] = t;
     n_processing_transactions++;
 }
@@ -242,6 +246,18 @@ void print_processing_list() {
     print_table_header();
     for (i = 0; i < n_processing_transactions; i++) {
         print_transaction(processing_transactions[i]);
+    }
+}
+
+void die() {
+    int i;
+    int found = 0;
+    for (i = 0; i < so_users_num && !found; i++) {
+        if (user_list[i] == getpid()) {
+            user_list[i] = -1;
+            found = 1;
+            raise(SIGINT);
+        }
     }
 }
 
