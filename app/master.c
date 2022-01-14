@@ -78,9 +78,12 @@ int main() {
     pid_t node_pid;
     pid_t user_pid;
     struct sigaction sa;
-    struct timespec interval;
-    interval.tv_sec = 1;
-    interval.tv_nsec = 0;
+    struct timespec request;
+    struct timespec remaining;
+    request.tv_sec = 1;
+    request.tv_nsec = 0;
+    remaining.tv_sec = 1;
+    remaining.tv_nsec = 0;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
@@ -99,7 +102,7 @@ int main() {
     /* SHARED MEMORY CREATION */
     key = ftok("../makefile", PROJ_ID_SHM_LEDGER);
     EXIT_ON_ERROR
-    id_shm_ledger = shmget(key, sizeof(master_ledger), IPC_CREAT | 0666);
+    id_shm_ledger = shmget(key, sizeof(block) * SO_REGISTRY_SIZE, IPC_CREAT | 0666);
     EXIT_ON_ERROR
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     EXIT_ON_ERROR
@@ -244,9 +247,8 @@ int main() {
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
-        printf("%d\n", remaining_seconds--);
-        printf("Active users = %d\n", active_users);
-        nanosleep(&interval, NULL);
+        printf("Timer %d\n", remaining_seconds--);
+        nanosleep(&request, &remaining);
     }
 
     kill(0, SIGTERM);
@@ -342,7 +344,7 @@ void read_configuration(configuration *config) {
     FILE *file;
     char s[23];
     char comment;
-    char filename[] = "../configurations/configuration1.conf";
+    char filename[] = "../configurations/configuration2.conf";
     int value;
     int i;
 
@@ -407,30 +409,27 @@ void read_configuration(configuration *config) {
 }
 
 void handler(int signal) {
-    pid_t p;
-    int status;
-
     switch (signal) {
-        case SIGCHLD:
-            /* loop as long as there are children to process */
+        /*case SIGCHLD:
+            *//* loop as long as there are children to process *//*
             while (1) {
-                /* retrieve child process ID (if any) */
+                *//* retrieve child process ID (if any) *//*
                 p = waitpid(-1, &status, WNOHANG);
 
-                /* check for conditions causing the loop to terminate */
+                *//* check for conditions causing the loop to terminate *//*
                 if (p == -1) {
-                    /* continue on interruption (EINTR) */
+                    *//* continue on interruption (EINTR) *//*
                     if (errno == EINTR) {
                         continue;
                     }
-                    /* break on anything else (EINVAL or ECHILD according to manpage) */
+                    *//* break on anything else (EINVAL or ECHILD according to manpage) *//*
                     break;
                 } else if (p == 0) {
-                    /* no more children to process, so break */
+                    *//* no more children to process, so break *//*
                     break;
                 }
             }
-            break;
+            break;*/
 
         case SIGALRM:
             executing = 0;
@@ -449,7 +448,6 @@ void handler(int signal) {
             break;
 
         case SIGUSR1:
-            printf("New user death\n");
             active_users--;
             break;
 

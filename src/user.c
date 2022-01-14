@@ -265,7 +265,7 @@ void handler(int signal) {
     switch (signal) {
         case SIGINT:
             kill(getppid(), SIGUSR1);
-            break;
+            exit(0);
 
         case SIGTERM:
             kill(getppid(), SIGUSR1);
@@ -273,7 +273,7 @@ void handler(int signal) {
 
         case SIGQUIT:
             kill(getppid(), SIGUSR1);
-            break;
+            exit(0);
 
         default:
             break;
