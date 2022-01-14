@@ -1,4 +1,2 @@
-1) Aggiungere le maschere dei segnali
-2) Aggiungere transazione da segnale
-4) Migliorare la gestione dei semafori
-5) Aggiungere l'ordinamento degli utenti in base al bilancio nella stampa del master
+1) Aggiungere transazione da segnale
+2) Migliorare la gestione dei semafori

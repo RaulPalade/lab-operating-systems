@@ -7,6 +7,9 @@ clean:
 	$(RM) -rf bin/*
 	$(RM) -rf build/*
 
+build/siglib.o: src/siglib.c include/siglib.h
+	$(CC) $(CFLAGS) -c src/siglib.c -o build/siglib.o
+
 build/semlib.o: src/semlib.c include/semlib.h
 	$(CC) $(CFLAGS) -c src/semlib.c -o build/semlib.o
 
@@ -19,8 +22,8 @@ bin/user: src/user.c build/util.o  build/semlib.o
 bin/node: src/node.c build/util.o build/semlib.o
 	$(CC) $(CFLAGS) src/node.c build/util.o build/semlib.o -o bin/node -lm
 
-bin/master: app/master.c build/util.o build/semlib.o
-	$(CC) $(CFLAGS) app/master.c build/util.o build/semlib.o -o bin/master -lm
+bin/master: app/master.c build/util.o build/semlib.o build/siglib.o
+	$(CC) $(CFLAGS) app/master.c build/util.o build/semlib.o build/siglib.o -o bin/master -lm
 
 run: all
 	bin/./master

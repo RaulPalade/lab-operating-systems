@@ -38,6 +38,7 @@ int so_users_num;
 int balance = 0;
 int dying = 0;
 int n_processing_transactions = 0;
+int last_block_checked = 0;
 
 /**
  * USER PROCESS
@@ -48,6 +49,7 @@ int n_processing_transactions = 0;
  * 5) Send transaction
  */
 int main(int argc, char *argv[]) {
+    int i;
     int lower;
     int upper;
     int random;
@@ -102,13 +104,16 @@ int main(int argc, char *argv[]) {
     wait_for_master(id_sem_init);
 
     while (1) {
-        /*if (msgrcv(id_msg_node_user, &user_node_msg, sizeof(user_node_msg), getpid(), IPC_NOWAIT) != -1) {
+        if (msgrcv(id_msg_node_user, &user_node_msg, sizeof(user_node_msg), getpid(), IPC_NOWAIT) != -1) {
             for (i = 0; i < n_processing_transactions; i++) {
                 if (equal_transaction(user_node_msg.t, processing_transactions[i])) {
+                    balance += user_node_msg.t.amount;
+                    balance += user_node_msg.t.reward;
                     remove_from_processing_list(i);
                 }
             }
-        }*/
+        }
+
         calculate_balance();
         if (balance >= 2) {
             transaction = new_transaction();
@@ -116,6 +121,9 @@ int main(int argc, char *argv[]) {
             user_node_msg.t = transaction;
             if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
                 dying++;
+                if (dying == so_retry) {
+                    die();
+                }
             } else {
                 add_to_processing_list(transaction);
             }
@@ -126,12 +134,6 @@ int main(int argc, char *argv[]) {
             interval.tv_sec = 0;
             interval.tv_nsec = random;
             nanosleep(&interval, NULL);
-        } else {
-            dying++;
-        }
-
-        if (dying == so_retry) {
-            die();
         }
     }
 }
@@ -141,40 +143,36 @@ int calculate_balance() {
     int j;
     int y;
     int equal = 0;
+    int tmp_block_id;
 
-    lock(id_sem_readers_block_id);
-    (*readers_block_id)++;
-    if (readers_block_id == 0) {
-        lock(id_sem_writers_block_id);
-    }
-    unlock(id_sem_readers_block_id);
-    for (i = 0; i <= *block_id; i++) {
-        for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
-            if (master_ledger->blocks[i].transactions[j].sender == getpid()) {
-                balance -= master_ledger->blocks[i].transactions[j].amount;
-                balance -= master_ledger->blocks[i].transactions[j].reward;
-            } else if (master_ledger->blocks[i].transactions[j].receiver == getpid()) {
-                balance += master_ledger->blocks[i].transactions[j].amount;
-            }
+    lock(id_sem_writers_block_id);
+    tmp_block_id = *block_id;
+    unlock(id_sem_writers_block_id);
 
-            for (y = 0; y < n_processing_transactions && !equal; y++) {
-                if (equal_transaction(master_ledger->blocks[i].transactions[j], processing_transactions[y])) {
-                    equal = 1;
-                    remove_from_processing_list(y);
+    if (last_block_checked != tmp_block_id) {
+        for (i = last_block_checked; i < tmp_block_id; i++) {
+            for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
+                if (master_ledger->blocks[i].transactions[j].sender == getpid()) {
+                    balance -= master_ledger->blocks[i].transactions[j].amount;
+                    balance -= master_ledger->blocks[i].transactions[j].reward;
+                } else if (master_ledger->blocks[i].transactions[j].receiver == getpid()) {
+                    balance += master_ledger->blocks[i].transactions[j].amount;
+                }
+
+                for (y = 0; y < n_processing_transactions && !equal; y++) {
+                    if (equal_transaction(master_ledger->blocks[i].transactions[j], processing_transactions[y])) {
+                        equal = 1;
+                        remove_from_processing_list(y);
+                    }
                 }
             }
         }
-    }
 
-    lock(id_sem_readers_block_id);
-    (*readers_block_id)--;
-    if (readers_block_id == 0) {
-        unlock(id_sem_writers_block_id);
-    }
-    unlock(id_sem_readers_block_id);
+        last_block_checked = tmp_block_id;
 
-    for (y = 0; y < n_processing_transactions; y++) {
-        balance -= processing_transactions[y].amount + processing_transactions[y].reward;
+        for (y = 0; y < n_processing_transactions; y++) {
+            balance -= processing_transactions[y].amount + processing_transactions[y].reward;
+        }
     }
 
     return balance;
@@ -254,7 +252,7 @@ void die() {
     int found = 0;
     for (i = 0; i < so_users_num && !found; i++) {
         if (user_list[i] == getpid()) {
-            user_list[i] = -1;
+            /*user_list[i] = -1;*/
             found = 1;
             raise(SIGINT);
         }

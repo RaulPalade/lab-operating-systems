@@ -1,4 +1,7 @@
 #include "../include/master.h"
+#include "../include/siglib.h"
+
+#define N_BALANCE_PRINT 10
 
 configuration config;
 ledger (*master_ledger);
@@ -47,6 +50,8 @@ int main() {
     int i;
     int node_balance;
     int user_balance;
+    user_data top_list[N_USER_TO_DISPLAY];
+    user_data min_list[N_USER_TO_DISPLAY];
 
     char *args_node[12] = {NODE};
     char *args_user[17] = {USER};
@@ -80,18 +85,22 @@ int main() {
     struct sigaction sa;
     struct timespec request;
     struct timespec remaining;
+    sigset_t my_mask;
     request.tv_sec = 1;
     request.tv_nsec = 0;
     remaining.tv_sec = 1;
     remaining.tv_nsec = 0;
 
-    memset(&sa, 0, sizeof(sa));
+    mask(SIGINT, my_mask);
+    mask(SIGTERM, my_mask);
+    mask(SIGQUIT, my_mask);
+    bzero(&sa, sizeof(sa));
     sa.sa_handler = handler;
-    sigaction(SIGCHLD, &sa, NULL);
     sigaction(SIGALRM, &sa, 0);
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
     sigaction(SIGQUIT, &sa, 0);
+    sigaction(SIGCHLD, &sa, 0);
     sigaction(SIGUSR1, &sa, 0);
     sigaction(SIGUSR2, &sa, 0);
 
@@ -158,6 +167,11 @@ int main() {
     id_sem_readers_block_id = semget(key, 1, IPC_CREAT | 0666);
     EXIT_ON_ERROR
     set_semaphore_val(id_sem_readers_block_id, 0, 1);
+
+    unmask(SIGINT, my_mask);
+    unmask(SIGTERM, my_mask);
+    unmask(SIGINT, my_mask);
+    unmask(SIGQUIT, my_mask);
 
     /* Preparing cmd line arguments for execv */
     sprintf(so_tp_size, "%d", config.SO_TP_SIZE);
@@ -243,17 +257,32 @@ int main() {
         }
     }
 
-    remaining_seconds = config.SO_SIM_SEC;
+    init_array(top_list, INT_MIN);
+    init_array(min_list, INT_MAX);
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
-        printf("Timer %d\n", remaining_seconds--);
+        for (i = 0; i < config.SO_NODES_NUM; i++) {
+            node_balance = calculate_node_balance(node_list[i]);
+            printf("Node %d balance = %d\n", node_list[i], node_balance);
+        }
+
+        for (i = 0; i < config.SO_USERS_NUM; i++) {
+            user_balance = calculate_user_balance(user_list[i]);
+            add_max(top_list, user_list[i], user_balance);
+            add_min(min_list, user_list[i], user_balance);
+            printf("\nTOP USERS\n");
+            print_user_data(top_list);
+            printf("\nMIN USERS\n");
+            print_user_data(min_list);
+        }
         nanosleep(&request, &remaining);
     }
-
     kill(0, SIGTERM);
 
-    /*for (i = 0; i < config.SO_NODES_NUM; i++) {
+    print_ledger();
+
+    for (i = 0; i < config.SO_NODES_NUM; i++) {
         node_balance = calculate_node_balance(node_list[i]);
         printf("Node %d balance = %d\n", node_list[i], node_balance);
     }
@@ -261,15 +290,11 @@ int main() {
     for (i = 0; i < config.SO_USERS_NUM; i++) {
         user_balance = calculate_user_balance(user_list[i]);
         printf("User %d balance = %d\n", user_list[i], user_balance);
-    }*/
-
-    print_ledger();
+        user_balance = 0;
+    }
     print_final_report();
 
     cleanIPC();
-
-    printf("\nInitial total funds = %d\n", initial_total_funds);
-    printf("\nFinal total funds = %d\n", final_total_funds);
 
     return 0;
 }
@@ -278,19 +303,20 @@ int calculate_user_balance(pid_t user) {
     int user_balance = config.SO_BUDGET_INIT;
     int i;
     int j;
+    int tmp_block_id;
     lock(id_sem_writers_block_id);
-    for (i = 0; i <= *block_id; i++) {
+    tmp_block_id = *block_id;
+    unlock(id_sem_writers_block_id);
+    for (i = 0; i < tmp_block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
             if (master_ledger->blocks[i].transactions[j].sender == user) {
                 user_balance -= master_ledger->blocks[i].transactions[j].amount;
                 user_balance -= master_ledger->blocks[i].transactions[j].reward;
             } else if (master_ledger->blocks[i].transactions[j].receiver == user) {
-                user_balance += master_ledger->blocks[i].transactions[j].reward;
+                user_balance += master_ledger->blocks[i].transactions[j].amount;
             }
         }
     }
-    unlock(id_sem_writers_block_id);
-
     return user_balance;
 }
 
@@ -298,14 +324,15 @@ int calculate_node_balance(pid_t node) {
     int node_balance = 0;
     int i;
     int j = SO_BLOCK_SIZE - 1;
+    int tmp_block_id;
     lock(id_sem_writers_block_id);
-    for (i = 0; i <= *block_id; i++) {
-        if (master_ledger->blocks[i].transactions[j].receiver == node) {
-            node_balance += master_ledger->blocks[i].transactions[j].reward;
-        }
-        j += SO_BLOCK_SIZE - 1;
-    }
+    tmp_block_id = *block_id;
     unlock(id_sem_writers_block_id);
+    for (i = 0; i < tmp_block_id; i++) {
+        if (master_ledger->blocks[i].transactions[j].receiver == node) {
+            node_balance += master_ledger->blocks[i].transactions[j].amount;
+        }
+    }
 
     return node_balance;
 }
@@ -313,28 +340,34 @@ int calculate_node_balance(pid_t node) {
 
 void print_ledger() {
     int i;
+    int tmp_block_id;
     printf("Printing ledger\n");
     lock(id_sem_writers_block_id);
-    for (i = 0; i <= *block_id; i++) {
+    tmp_block_id = *block_id;
+    unlock(id_sem_writers_block_id);
+    for (i = 0; i < tmp_block_id; i++) {
         print_block(master_ledger->blocks[i]);
         printf("-----------------------------------------------------------------------------------------------------\n");
     }
-    unlock(id_sem_writers_block_id);
     printf("-----------------------------------------------------------------------------------------------------\n");
 }
 
 void print_live_info() {
     printf("-----------------------------------------------------------------------------------------------------\n");
-    printf("%10s\n", "ACTIVE USERS");
-    printf("%10d\n", active_users);
+    printf("%10s%10s\n", "ACTIVE NODES", "ACTIVE USERS");
+    printf("%10d%10d\n", active_nodes, active_users);
 }
 
 void print_final_report() {
     printf("\n---------------------END---------------------\n");
     printf("Simulation ended with flags\n");
-    printf("Executing = %d\n", executing);
-    printf("Active users = %d\n", active_users);
-    printf("Ledger full = %d\n", ledger_full);
+    if (active_users == 0) {
+        printf("Simulation ended because all users are dead\n");
+    } else if (executing == 0) {
+        printf("Simulation ended because time expired\n");
+    } else if (ledger_full == 0) {
+        printf("Simulation ended because the ledger is full\n");
+    }
     printf("User processes dead = %d\n", config.SO_USERS_NUM - active_users);
     printf("Number of blocks in the ledger = %d\n", *block_id);
     printf("---------------------END---------------------\n");
@@ -410,27 +443,6 @@ void read_configuration(configuration *config) {
 
 void handler(int signal) {
     switch (signal) {
-        /*case SIGCHLD:
-            *//* loop as long as there are children to process *//*
-            while (1) {
-                *//* retrieve child process ID (if any) *//*
-                p = waitpid(-1, &status, WNOHANG);
-
-                *//* check for conditions causing the loop to terminate *//*
-                if (p == -1) {
-                    *//* continue on interruption (EINTR) *//*
-                    if (errno == EINTR) {
-                        continue;
-                    }
-                    *//* break on anything else (EINVAL or ECHILD according to manpage) *//*
-                    break;
-                } else if (p == 0) {
-                    *//* no more children to process, so break *//*
-                    break;
-                }
-            }
-            break;*/
-
         case SIGALRM:
             executing = 0;
             break;
@@ -479,4 +491,47 @@ void cleanIPC() {
     semctl(id_sem_init, 0, IPC_RMID);
     semctl(id_sem_writers_block_id, 0, IPC_RMID);
     semctl(id_sem_readers_block_id, 0, IPC_RMID);
+}
+
+void add_max(user_data *array, pid_t pid, int balance) {
+    int i;
+    int added = 0;
+    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
+        if (balance > array[i].balance) {
+            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
+            array[i].pid = pid;
+            array[i].balance = balance;
+            added = 1;
+        }
+    }
+}
+
+void add_min(user_data *array, pid_t pid, int balance) {
+    int i;
+    int added = 0;
+    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
+        if (balance < array[i].balance) {
+            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
+            array[i].pid = pid;
+            array[i].balance = balance;
+            added = 1;
+        }
+    }
+}
+
+void init_array(user_data *array, int value) {
+    int i;
+    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
+        array[i].pid = 0;
+        array[i].balance = value;
+    }
+}
+
+void print_user_data(user_data *array) {
+    int i;
+    printf("%5s%10s\n", "PID", "BALANCE");
+    printf("---------------------------\n");
+    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
+        printf("%5d%10d\n", array[i].pid, array[i].balance);
+    }
 }
