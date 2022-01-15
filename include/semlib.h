@@ -2,10 +2,11 @@
 #define __SEMLIB_H
 
 union semun {
-    int val;
-    struct semid_ds *buf;
-    unsigned short *array;
-    struct seminfo *__buf;
+    int val;    /* Value for SETVAL */
+    struct semid_ds *buf;    /* Buffer for IPC_STAT, IPC_SET */
+    unsigned short *array;  /* Array for GETALL, SETALL */
+    struct seminfo *__buf;  /* Buffer for IPC_INFO
+                                           (Linux-specific) */
 };
 
 int set_semaphore_val(int, int, int);

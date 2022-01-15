@@ -47,6 +47,7 @@ pid_t *node_list;
  * 8) Print final report
  */
 int main() {
+    int sem_value;
     int i;
     int node_balance;
     int user_balance;
@@ -85,6 +86,7 @@ int main() {
     struct sigaction sa;
     struct timespec request;
     struct timespec remaining;
+    union semun sem_ds;
     sigset_t my_mask;
     request.tv_sec = 1;
     request.tv_nsec = 0;
@@ -259,9 +261,11 @@ int main() {
 
     init_array(top_list, INT_MIN);
     init_array(min_list, INT_MAX);
+    remaining_seconds = config.SO_SIM_SEC;
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
+        printf("TIMER = %d\n", remaining_seconds--);
         for (i = 0; i < config.SO_NODES_NUM; i++) {
             node_balance = calculate_node_balance(node_list[i]);
             printf("Node %d balance = %d\n", node_list[i], node_balance);
@@ -278,6 +282,7 @@ int main() {
         }
         nanosleep(&request, &remaining);
     }
+
     kill(0, SIGTERM);
 
     print_ledger();
@@ -286,12 +291,11 @@ int main() {
         node_balance = calculate_node_balance(node_list[i]);
         printf("Node %d balance = %d\n", node_list[i], node_balance);
     }
-
     for (i = 0; i < config.SO_USERS_NUM; i++) {
         user_balance = calculate_user_balance(user_list[i]);
         printf("User %d balance = %d\n", user_list[i], user_balance);
-        user_balance = 0;
     }
+
     print_final_report();
 
     cleanIPC();
@@ -325,6 +329,7 @@ int calculate_node_balance(pid_t node) {
     int i;
     int j = SO_BLOCK_SIZE - 1;
     int tmp_block_id;
+
     lock(id_sem_writers_block_id);
     tmp_block_id = *block_id;
     unlock(id_sem_writers_block_id);
@@ -337,6 +342,70 @@ int calculate_node_balance(pid_t node) {
     return node_balance;
 }
 
+void add_max(user_data *array, pid_t pid, int balance) {
+    int i;
+    int added = 0;
+    int present = 0;
+    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
+        if (pid == array[i].pid) {
+            if (balance > array[i].balance) {
+                array[i].balance = balance;
+                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
+                added = 1;
+            }
+            present = 1;
+        }
+        if (present == 0 && balance > array[i].balance) {
+            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
+            array[i].pid = pid;
+            array[i].balance = balance;
+            added = 1;
+        }
+    }
+}
+
+void add_min(user_data *array, pid_t pid, int balance) {
+    int i;
+    int added = 0;
+    int present = 0;
+    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
+        if (pid == array[i].pid) {
+            if (balance < array[i].balance) {
+                array[i].balance = balance;
+                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
+                added = 1;
+            }
+            present = 1;
+        }
+        if (present == 0 && balance < array[i].balance) {
+            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
+            array[i].pid = pid;
+            array[i].balance = balance;
+            added = 1;
+        }
+    }
+}
+
+void init_array(user_data *array, int value) {
+    int i;
+    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
+        array[i].pid = 0;
+        array[i].balance = value;
+    }
+}
+
+void print_user_data(user_data *array) {
+    int i;
+    printf("%5s%10s\n", "PID", "BALANCE");
+    printf("---------------------------\n");
+    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
+        printf("%5d%10d\n", array[i].pid, array[i].balance);
+    }
+}
+
+int compare(const void *a, const void *b) {
+    return (*(int *) a - *(int *) b);
+}
 
 void print_ledger() {
     int i;
@@ -442,8 +511,11 @@ void read_configuration(configuration *config) {
 }
 
 void handler(int signal) {
+    union semun sem_ds;
+    int sem_value;
     switch (signal) {
         case SIGALRM:
+
             executing = 0;
             break;
 
@@ -468,6 +540,10 @@ void handler(int signal) {
             break;
 
         default:
+            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            if (sem_value == 1) {
+                unlock(id_sem_writers_block_id);
+            }
             break;
     }
 }
@@ -491,69 +567,4 @@ void cleanIPC() {
     semctl(id_sem_init, 0, IPC_RMID);
     semctl(id_sem_writers_block_id, 0, IPC_RMID);
     semctl(id_sem_readers_block_id, 0, IPC_RMID);
-}
-
-void add_max(user_data *array, pid_t pid, int balance) {
-    int i;
-    int added = 0;
-    int present = 0;
-    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-        if (pid == array[i].pid) {
-            if (balance > array[i].balance) {
-                array[i].balance = balance;
-                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
-                added = 1;
-            }
-            present = 1;
-        }
-        if (present == 0 && balance > array[i].balance) {
-            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
-            array[i].pid = pid;
-            array[i].balance = balance;
-            added = 1;
-        }
-    }
-}
-
-void add_min(user_data *array, pid_t pid, int balance) {
-    int i;
-    int added = 0;
-    int present = 0;
-    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-        if (pid == array[i].pid) {
-            if (balance < array[i].balance) {
-                array[i].balance = balance;
-                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
-                added = 1;
-            }
-            present = 1;
-        }
-        if (present == 0 && balance < array[i].balance) {
-            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
-            array[i].pid = pid;
-            array[i].balance = balance;
-            added = 1;
-        }
-    }
-}
-
-void init_array(user_data *array, int value) {
-    int i;
-    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
-        array[i].pid = 0;
-        array[i].balance = value;
-    }
-}
-
-void print_user_data(user_data *array) {
-    int i;
-    printf("%5s%10s\n", "PID", "BALANCE");
-    printf("---------------------------\n");
-    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
-        printf("%5d%10d\n", array[i].pid, array[i].balance);
-    }
-}
-
-int compare(const void *a, const void *b) {
-    return (*(int *) a - *(int *) b);
 }
