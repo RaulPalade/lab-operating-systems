@@ -29,6 +29,7 @@ volatile int executing = 1;
 int ledger_full = 0;
 int active_nodes = 0;
 int active_users = 0;
+int final_alive_users = 0;
 
 int initial_total_funds;
 int final_total_funds;
@@ -285,19 +286,23 @@ int main() {
 
     kill(0, SIGTERM);
 
-    /*print_ledger();*/
+    print_ledger();
 
-    /*printf("%10s%10s\n", "NODE", "BALANCE");
+    printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
+    printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
+    printf("%s\n", ANSI_COLOR_GREEN "===============================" ANSI_COLOR_RESET);
     for (i = 0; i < config.SO_NODES_NUM; i++) {
-        node_balance = calculate_node_balance(node_list[i]);
-        printf("%10d%10d\n", node_list[i], node_balance);
+        node_balance = calculate_node_balance(node_list[i], *block_id);
+        printf("%8d    %5s    %8d\n", node_list[i], "|", node_balance);
     }
 
-    printf("%10s%10s\n", "USER", "BALANCE");
+    printf("\n%s\n", ANSI_COLOR_GREEN "=============USERS=============" ANSI_COLOR_RESET);
+    printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
+    printf("%s\n", ANSI_COLOR_GREEN "===============================" ANSI_COLOR_RESET);
     for (i = 0; i < config.SO_USERS_NUM; i++) {
-        user_balance = calculate_user_balance(user_list[i]);
-        printf("%10d%10d\n", user_list[i], user_balance);
-    }*/
+        user_balance = calculate_user_balance(user_list[i], *block_id);
+        printf("%8d    %5s    %8d\n", user_list[i], "|", user_balance);
+    }
 
     print_final_report();
 
@@ -315,7 +320,7 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET,
            ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET);
 
-    printf("%8s      %5s    %8s          %8s        %5s    %8s         %8s     %5s    %8s             %10s               %10s\n",
+    printf("%8s      %5s    %8s          %8s      %5s    %8s         %8s     %5s    %8s               %10s               %10s\n",
            "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
            "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
            "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
@@ -323,13 +328,23 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            "ACTIVE USERS");
     printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
     for (i = 0; i < N_USER_TO_DISPLAY; i++) {
-        printf("%8d      %5s    %8d            %8d      %5s  %8d            %8d    %5s  %8d           %10d                   %10d\n",
-               top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
-               top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
-               worst_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[i].balance,
-               active_nodes,
-               active_users
-        );
+        if (i == 0) {
+            printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10d                   %10d\n",
+                   top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
+                   top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
+                   worst_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[i].balance,
+                   active_nodes,
+                   active_users
+            );
+        } else {
+            printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10s                   %10s\n",
+                   top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
+                   top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
+                   worst_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[i].balance,
+                   "",
+                   ""
+            );
+        }
     }
 }
 
@@ -423,7 +438,6 @@ int compare(const void *a, const void *b) {
 void print_ledger() {
     int i;
     int tmp_block_id;
-    printf("Printing ledger\n");
     lock(id_sem_writers_block_id);
     tmp_block_id = *block_id;
     unlock(id_sem_writers_block_id);
@@ -434,18 +448,24 @@ void print_ledger() {
 }
 
 void print_final_report() {
-    printf("\n---------------------END---------------------\n");
-    printf("Simulation ended with flags\n");
-    if (active_users == 0) {
-        printf("Simulation ended because all users are dead\n");
-    } else if (executing == 0) {
-        printf("Simulation ended because time expired\n");
-    } else if (ledger_full == 0) {
-        printf("Simulation ended because the ledger is full\n");
+    printf(ANSI_COLOR_CYAN "\n\n==================SIMULATION REPORT==================\n" ANSI_COLOR_RESET);
+    printf("%s %s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET, "Reason of ending: ");
+    if (executing == 0) {
+        printf("%s", "time expired");
     }
-    printf("User processes dead = %d\n", config.SO_USERS_NUM - active_users);
-    printf("Number of blocks in the ledger = %d\n", *block_id);
-    printf("---------------------END---------------------\n");
+    if (ledger_full == 1) {
+        printf("%s", ", ledger full");
+    }
+    if (active_users == 0) {
+        printf("%s", ", all users are dead");
+    }
+    printf(ANSI_COLOR_CYAN "%s\n", "                    |" ANSI_COLOR_RESET);
+    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
+    printf(" User processes dead = %d %s\n", config.SO_USERS_NUM - final_alive_users,
+           ANSI_COLOR_CYAN "                          |" ANSI_COLOR_RESET);
+    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
+    printf(" Number of blocks in the ledger = %d %s\n", *block_id, ANSI_COLOR_CYAN "             |" ANSI_COLOR_RESET);
+    printf(ANSI_COLOR_CYAN "================SIMULATION TERMINATED================\n" ANSI_COLOR_RESET);
 }
 
 void read_configuration(configuration *config) {
@@ -522,6 +542,7 @@ void handler(int signal) {
     sem_ds.val = 0;
     switch (signal) {
         case SIGALRM:
+            final_alive_users = active_users;
             sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
             if (sem_value == 0) {
                 unlock(id_sem_writers_block_id);
