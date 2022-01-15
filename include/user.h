@@ -5,6 +5,8 @@ int calculate_balance();
 
 transaction new_transaction();
 
+void execute_transaction();
+
 void add_to_processing_list(transaction t);
 
 void remove_from_processing_list(int);

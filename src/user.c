@@ -50,11 +50,7 @@ int last_block_checked = 0;
  */
 int main(int argc, char *argv[]) {
     int i;
-    int lower;
-    int upper;
-    int random;
     struct sigaction sa;
-    struct timespec interval;
     transaction transaction;
 
     processing_transactions = malloc(sizeof(transaction));
@@ -64,6 +60,7 @@ int main(int argc, char *argv[]) {
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
     sigaction(SIGQUIT, &sa, 0);
+    sigaction(SIGUSR1, &sa, 0);
 
     /* SHARED MEMORY CREATION */
     user_index = atoi(argv[1]);
@@ -114,27 +111,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        calculate_balance();
-        if (balance >= 2) {
-            transaction = new_transaction();
-            user_node_msg.mtype = 1;
-            user_node_msg.t = transaction;
-            if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
-                dying++;
-                if (dying == so_retry) {
-                    die();
-                }
-            } else {
-                add_to_processing_list(transaction);
-            }
-
-            lower = so_min_trans_gen_nsec;
-            upper = so_max_trans_gen_nsec;
-            random = (rand() % (upper - lower + 1)) + lower;
-            interval.tv_sec = 0;
-            interval.tv_nsec = random;
-            nanosleep(&interval, NULL);
-        }
+        execute_transaction();
     }
 }
 
@@ -202,6 +179,35 @@ transaction new_transaction() {
     return transaction;
 }
 
+void execute_transaction() {
+    int lower;
+    int upper;
+    int random;
+    struct timespec interval;
+    transaction transaction;
+    calculate_balance();
+    if (balance >= 2) {
+        transaction = new_transaction();
+        user_node_msg.mtype = 1;
+        user_node_msg.t = transaction;
+        if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
+            dying++;
+            if (dying == so_retry) {
+                die();
+            }
+        } else {
+            add_to_processing_list(transaction);
+        }
+
+        lower = so_min_trans_gen_nsec;
+        upper = so_max_trans_gen_nsec;
+        random = (rand() % (upper - lower + 1)) + lower;
+        interval.tv_sec = 0;
+        interval.tv_nsec = random;
+        nanosleep(&interval, NULL);
+    }
+}
+
 void add_to_processing_list(transaction t) {
     processing_transactions = realloc(processing_transactions,
                                       (n_processing_transactions + 1) * sizeof(transaction));
@@ -252,7 +258,6 @@ void die() {
     int found = 0;
     for (i = 0; i < so_users_num && !found; i++) {
         if (user_list[i] == getpid()) {
-            /*user_list[i] = -1;*/
             found = 1;
             raise(SIGINT);
         }
@@ -260,6 +265,7 @@ void die() {
 }
 
 void handler(int signal) {
+    transaction t;
     switch (signal) {
         case SIGINT:
             kill(getppid(), SIGUSR1);
@@ -272,6 +278,10 @@ void handler(int signal) {
         case SIGQUIT:
             kill(getppid(), SIGUSR1);
             exit(0);
+
+        case SIGUSR1:
+            execute_transaction();
+            break;
 
         default:
             break;
