@@ -31,13 +31,25 @@ void print_configuration(configuration configuration) {
 }
 
 void print_table_header() {
-    printf("-----------------------------------------------------------------------------------------------------\n");
-    printf("%15s %15s %15s %15s %15s\n", "TIMESTAMP", "SENDER", "RECEIVER", "AMOUNT", "REWARD");
-    printf("-----------------------------------------------------------------------------------------------------\n");
+    printf(ANSI_COLOR_GREEN "=============================================================================================================================\n" ANSI_COLOR_RESET);
+    printf("%5s %15s %5s %10s %15s %5s %10s %15s %5s %10s %15s %5s %10s %15s\n",
+           "",
+           "TIMESTAMP", "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           "SENDER", "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           "RECEIVER", "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           "AMOUNT", "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           "REWARD");
+    printf(ANSI_COLOR_GREEN "=============================================================================================================================\n" ANSI_COLOR_RESET);
 }
 
 void print_transaction(transaction t) {
-    printf("%15ld %15d %15d %15d %15d\n", t.timestamp, t.sender, t.receiver, t.amount, t.reward);
+    printf("%5s %15ld %5s %10s %15d %5s %10s %15d %5s %10s %15d %5s %10s %15d\n",
+           "",
+           t.timestamp, "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           t.sender, "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           t.receiver, "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           t.amount, "", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET,
+           t.reward);
 }
 
 void print_block(block block) {

@@ -47,7 +47,6 @@ pid_t *node_list;
  * 8) Print final report
  */
 int main() {
-    int sem_value;
     int i;
     int node_balance;
     int user_balance;
@@ -86,7 +85,6 @@ int main() {
     struct sigaction sa;
     struct timespec request;
     struct timespec remaining;
-    union semun sem_ds;
     sigset_t my_mask;
     request.tv_sec = 1;
     request.tv_nsec = 0;
@@ -287,14 +285,17 @@ int main() {
 
     print_ledger();
 
+    /*printf("%10s%10s\n", "NODE", "BALANCE");
     for (i = 0; i < config.SO_NODES_NUM; i++) {
         node_balance = calculate_node_balance(node_list[i]);
-        printf("Node %d balance = %d\n", node_list[i], node_balance);
+        printf("%10d%10d\n", node_list[i], node_balance);
     }
+
+    printf("%10s%10s\n", "USER", "BALANCE");
     for (i = 0; i < config.SO_USERS_NUM; i++) {
         user_balance = calculate_user_balance(user_list[i]);
-        printf("User %d balance = %d\n", user_list[i], user_balance);
-    }
+        printf("%10d%10d\n", user_list[i], user_balance);
+    }*/
 
     print_final_report();
 
@@ -416,9 +417,8 @@ void print_ledger() {
     unlock(id_sem_writers_block_id);
     for (i = 0; i < tmp_block_id; i++) {
         print_block(master_ledger->blocks[i]);
-        printf("-----------------------------------------------------------------------------------------------------\n");
+        printf(ANSI_COLOR_GREEN "=============================================================================================================================\n" ANSI_COLOR_RESET);
     }
-    printf("-----------------------------------------------------------------------------------------------------\n");
 }
 
 void print_live_info() {
@@ -513,6 +513,7 @@ void read_configuration(configuration *config) {
 void handler(int signal) {
     union semun sem_ds;
     int sem_value;
+    sem_ds.val = 0;
     switch (signal) {
         case SIGALRM:
             sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);

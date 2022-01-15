@@ -1,2 +1,1 @@
 1) Aggiungere transazione da segnale
-2) Migliorare la gestione dei semafori
