@@ -39,4 +39,6 @@ void init_array(user_data *, int);
 
 void print_user_data(user_data *);
 
+int compare(const void *, const void *);
+
 #endif

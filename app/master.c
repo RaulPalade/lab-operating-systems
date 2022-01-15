@@ -496,8 +496,17 @@ void cleanIPC() {
 void add_max(user_data *array, pid_t pid, int balance) {
     int i;
     int added = 0;
+    int present = 0;
     for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-        if (balance > array[i].balance) {
+        if (pid == array[i].pid) {
+            if (balance > array[i].balance) {
+                array[i].balance = balance;
+                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
+                added = 1;
+            }
+            present = 1;
+        }
+        if (present == 0 && balance > array[i].balance) {
             memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
             array[i].pid = pid;
             array[i].balance = balance;
@@ -509,8 +518,17 @@ void add_max(user_data *array, pid_t pid, int balance) {
 void add_min(user_data *array, pid_t pid, int balance) {
     int i;
     int added = 0;
+    int present = 0;
     for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-        if (balance < array[i].balance) {
+        if (pid == array[i].pid) {
+            if (balance < array[i].balance) {
+                array[i].balance = balance;
+                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
+                added = 1;
+            }
+            present = 1;
+        }
+        if (present == 0 && balance < array[i].balance) {
             memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
             array[i].pid = pid;
             array[i].balance = balance;
@@ -534,4 +552,8 @@ void print_user_data(user_data *array) {
     for (i = 0; i < N_USER_TO_DISPLAY; i++) {
         printf("%5d%10d\n", array[i].pid, array[i].balance);
     }
+}
+
+int compare(const void *a, const void *b) {
+    return (*(int *) a - *(int *) b);
 }
