@@ -515,11 +515,18 @@ void handler(int signal) {
     int sem_value;
     switch (signal) {
         case SIGALRM:
-
+            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            if (sem_value == 0) {
+                unlock(id_sem_writers_block_id);
+            }
             executing = 0;
             break;
 
         case SIGINT:
+            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            if (sem_value == 0) {
+                unlock(id_sem_writers_block_id);
+            }
             executing = 0;
             break;
 
@@ -528,10 +535,18 @@ void handler(int signal) {
             break;
 
         case SIGQUIT:
+            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            if (sem_value == 0) {
+                unlock(id_sem_writers_block_id);
+            }
             executing = 0;
             break;
 
         case SIGUSR1:
+            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            if (sem_value == 0) {
+                unlock(id_sem_writers_block_id);
+            }
             active_users--;
             break;
 
@@ -540,10 +555,6 @@ void handler(int signal) {
             break;
 
         default:
-            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
-            if (sem_value == 1) {
-                unlock(id_sem_writers_block_id);
-            }
             break;
     }
 }
