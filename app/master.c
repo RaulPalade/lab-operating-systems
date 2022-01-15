@@ -50,8 +50,10 @@ int main() {
     int i;
     int node_balance;
     int user_balance;
-    user_data top_list[N_USER_TO_DISPLAY];
-    user_data min_list[N_USER_TO_DISPLAY];
+    int tmp_block_id;
+    child_data top_nodes[N_USER_TO_DISPLAY];
+    child_data top_users[N_USER_TO_DISPLAY];
+    child_data worst_users[N_USER_TO_DISPLAY];
 
     char *args_node[12] = {NODE};
     char *args_user[17] = {USER};
@@ -79,7 +81,6 @@ int main() {
     char id_sem_writers_block_id_str[3 * sizeof(int) + 1];
     char id_sem_readers_block_id_str[3 * sizeof(int) + 1];
     key_t key;
-    int remaining_seconds;
     pid_t node_pid;
     pid_t user_pid;
     struct sigaction sa;
@@ -257,33 +258,34 @@ int main() {
         }
     }
 
-    init_array(top_list, INT_MIN);
-    init_array(min_list, INT_MAX);
-    remaining_seconds = config.SO_SIM_SEC;
+    init_array(top_users, INT_MIN);
+    init_array(worst_users, INT_MAX);
+    init_array(top_nodes, INT_MIN);
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
-        printf("TIMER = %d\n", remaining_seconds--);
+        lock(id_sem_writers_block_id);
+        tmp_block_id = *block_id;
+        unlock(id_sem_writers_block_id);
         for (i = 0; i < config.SO_NODES_NUM; i++) {
-            node_balance = calculate_node_balance(node_list[i]);
-            printf("Node %d balance = %d\n", node_list[i], node_balance);
+            node_balance = calculate_node_balance(node_list[i], tmp_block_id);
+            add_max(top_nodes, node_list[i], node_balance);
         }
 
         for (i = 0; i < config.SO_USERS_NUM; i++) {
-            user_balance = calculate_user_balance(user_list[i]);
-            add_max(top_list, user_list[i], user_balance);
-            add_min(min_list, user_list[i], user_balance);
-            printf("\nTOP USERS\n");
-            print_user_data(top_list);
-            printf("\nMIN USERS\n");
-            print_user_data(min_list);
+            user_balance = calculate_user_balance(user_list[i], tmp_block_id);
+            add_max(top_users, user_list[i], user_balance);
+            add_min(worst_users, user_list[i], user_balance);
         }
+
+        print_live_info(top_nodes, top_users, worst_users);
+
         nanosleep(&request, &remaining);
     }
 
     kill(0, SIGTERM);
 
-    print_ledger();
+    /*print_ledger();*/
 
     /*printf("%10s%10s\n", "NODE", "BALANCE");
     for (i = 0; i < config.SO_NODES_NUM; i++) {
@@ -304,14 +306,37 @@ int main() {
     return 0;
 }
 
-int calculate_user_balance(pid_t user) {
+void print_live_info(child_data *top_nodes, child_data *top_users, child_data *worst_users) {
+    int i;
+    printf("\n%10s        %10s        %10s        %10s         %10s\n",
+           ANSI_COLOR_GREEN "==========TOP NODES==========" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "==========TOP USERS==========" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "=========WORST USERS=========" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET);
+
+    printf("%8s      %5s    %8s          %8s        %5s    %8s         %8s     %5s    %8s             %10s               %10s\n",
+           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
+           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
+           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
+           "ACTIVE NODES",
+           "ACTIVE USERS");
+    printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
+    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
+        printf("%8d      %5s    %8d            %8d      %5s  %8d            %8d    %5s  %8d           %10d                   %10d\n",
+               top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
+               top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
+               worst_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[i].balance,
+               active_nodes,
+               active_users
+        );
+    }
+}
+
+int calculate_user_balance(pid_t user, int tmp_block_id) {
     int user_balance = config.SO_BUDGET_INIT;
     int i;
     int j;
-    int tmp_block_id;
-    lock(id_sem_writers_block_id);
-    tmp_block_id = *block_id;
-    unlock(id_sem_writers_block_id);
     for (i = 0; i < tmp_block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
             if (master_ledger->blocks[i].transactions[j].sender == user) {
@@ -325,15 +350,11 @@ int calculate_user_balance(pid_t user) {
     return user_balance;
 }
 
-int calculate_node_balance(pid_t node) {
+int calculate_node_balance(pid_t node, int tmp_block_id) {
     int node_balance = 0;
     int i;
     int j = SO_BLOCK_SIZE - 1;
-    int tmp_block_id;
 
-    lock(id_sem_writers_block_id);
-    tmp_block_id = *block_id;
-    unlock(id_sem_writers_block_id);
     for (i = 0; i < tmp_block_id; i++) {
         if (master_ledger->blocks[i].transactions[j].receiver == node) {
             node_balance += master_ledger->blocks[i].transactions[j].amount;
@@ -343,7 +364,7 @@ int calculate_node_balance(pid_t node) {
     return node_balance;
 }
 
-void add_max(user_data *array, pid_t pid, int balance) {
+void add_max(child_data *array, pid_t pid, int balance) {
     int i;
     int added = 0;
     int present = 0;
@@ -365,7 +386,7 @@ void add_max(user_data *array, pid_t pid, int balance) {
     }
 }
 
-void add_min(user_data *array, pid_t pid, int balance) {
+void add_min(child_data *array, pid_t pid, int balance) {
     int i;
     int added = 0;
     int present = 0;
@@ -387,20 +408,11 @@ void add_min(user_data *array, pid_t pid, int balance) {
     }
 }
 
-void init_array(user_data *array, int value) {
+void init_array(child_data *array, int value) {
     int i;
     for (i = 0; i < N_USER_TO_DISPLAY; i++) {
         array[i].pid = 0;
         array[i].balance = value;
-    }
-}
-
-void print_user_data(user_data *array) {
-    int i;
-    printf("%5s%10s\n", "PID", "BALANCE");
-    printf("---------------------------\n");
-    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
-        printf("%5d%10d\n", array[i].pid, array[i].balance);
     }
 }
 
@@ -419,12 +431,6 @@ void print_ledger() {
         print_block(master_ledger->blocks[i]);
         printf(ANSI_COLOR_GREEN "=============================================================================================================================\n" ANSI_COLOR_RESET);
     }
-}
-
-void print_live_info() {
-    printf("-----------------------------------------------------------------------------------------------------\n");
-    printf("%10s%10s\n", "ACTIVE NODES", "ACTIVE USERS");
-    printf("%10d%10d\n", active_nodes, active_users);
 }
 
 void print_final_report() {

@@ -13,15 +13,13 @@
 typedef struct {
     pid_t pid;
     int balance;
-} user_data;
+} child_data;
 
-int calculate_user_balance(pid_t user);
+int calculate_user_balance(pid_t user, int);
 
-int calculate_node_balance(pid_t node);
+int calculate_node_balance(pid_t node, int);
 
 void print_ledger();
-
-void print_live_info();
 
 void print_final_report();
 
@@ -31,13 +29,13 @@ void cleanIPC();
 
 void handler(int);
 
-void add_max(user_data *, pid_t, int);
+void add_max(child_data *, pid_t, int);
 
-void add_min(user_data *, pid_t, int);
+void add_min(child_data *, pid_t, int);
 
-void init_array(user_data *, int);
+void init_array(child_data *, int);
 
-void print_user_data(user_data *);
+void print_live_info(child_data *, child_data *, child_data *);
 
 int compare(const void *, const void *);
 
