@@ -151,7 +151,6 @@ int calculate_balance() {
             balance -= processing_transactions[y].amount + processing_transactions[y].reward;
         }
     }
-
     return balance;
 }
 
@@ -183,7 +182,7 @@ void execute_transaction() {
     int lower;
     int upper;
     int random;
-    struct timespec interval;
+    struct timespec request, remaining;
     transaction transaction;
     calculate_balance();
     if (balance >= 2) {
@@ -202,9 +201,9 @@ void execute_transaction() {
         lower = so_min_trans_gen_nsec;
         upper = so_max_trans_gen_nsec;
         random = (rand() % (upper - lower + 1)) + lower;
-        interval.tv_sec = 0;
-        interval.tv_nsec = random;
-        nanosleep(&interval, NULL);
+        request.tv_sec = 0;
+        request.tv_nsec = random;
+        nanosleep(&request, &remaining);
     }
 }
 

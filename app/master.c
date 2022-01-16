@@ -268,6 +268,7 @@ int main() {
         lock(id_sem_writers_block_id);
         tmp_block_id = *block_id;
         unlock(id_sem_writers_block_id);
+        tmp_block_id--;
         for (i = 0; i < config.SO_NODES_NUM; i++) {
             node_balance = calculate_node_balance(node_list[i], tmp_block_id);
             add_max(top_nodes, node_list[i], node_balance);
@@ -319,6 +320,7 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            ANSI_COLOR_GREEN "=========WORST USERS=========" ANSI_COLOR_RESET,
            ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET,
            ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET);
+    fflush(stdout);
 
     printf("%8s      %5s    %8s          %8s      %5s    %8s         %8s     %5s    %8s               %10s               %10s\n",
            "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
@@ -326,7 +328,9 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
            "ACTIVE NODES",
            "ACTIVE USERS");
+    fflush(stdout);
     printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
+    fflush(stdout);
     for (i = 0; i < N_USER_TO_DISPLAY; i++) {
         if (i == 0) {
             printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10d                   %10d\n",
@@ -336,6 +340,7 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
                    active_nodes,
                    active_users
             );
+            fflush(stdout);
         } else {
             printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10s                   %10s\n",
                    top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
@@ -344,6 +349,7 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
                    "",
                    ""
             );
+            fflush(stdout);
         }
     }
 }
@@ -387,7 +393,7 @@ void add_max(child_data *array, pid_t pid, int balance) {
         if (pid == array[i].pid) {
             if (balance > array[i].balance) {
                 array[i].balance = balance;
-                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
+                qsort(array, N_USER_TO_DISPLAY, sizeof(child_data), compare);
                 added = 1;
             }
             present = 1;
@@ -409,7 +415,7 @@ void add_min(child_data *array, pid_t pid, int balance) {
         if (pid == array[i].pid) {
             if (balance < array[i].balance) {
                 array[i].balance = balance;
-                qsort(&array[i].balance, N_USER_TO_DISPLAY, sizeof(int), compare);
+                qsort(array, N_USER_TO_DISPLAY, sizeof(child_data), compare);
                 added = 1;
             }
             present = 1;
@@ -423,16 +429,25 @@ void add_min(child_data *array, pid_t pid, int balance) {
     }
 }
 
+int compare(const void *s1, const void *s2) {
+    const child_data *c1 = (child_data *) s1;
+    const child_data *c2 = (child_data *) s2;
+
+    if (c1->balance < c2->balance) {
+        return 1;
+    } else if (c1->balance > c2->balance) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
 void init_array(child_data *array, int value) {
     int i;
     for (i = 0; i < N_USER_TO_DISPLAY; i++) {
         array[i].pid = 0;
         array[i].balance = value;
     }
-}
-
-int compare(const void *a, const void *b) {
-    return (*(int *) a - *(int *) b);
 }
 
 void print_ledger() {
@@ -551,11 +566,11 @@ void handler(int signal) {
             break;
 
         case SIGINT:
-            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            /*sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
             if (sem_value == 0) {
                 unlock(id_sem_writers_block_id);
             }
-            executing = 0;
+            executing = 0;*/
             break;
 
         case SIGTERM:
@@ -563,18 +578,18 @@ void handler(int signal) {
             break;
 
         case SIGQUIT:
-            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            /*sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
             if (sem_value == 0) {
                 unlock(id_sem_writers_block_id);
             }
-            executing = 0;
+            executing = 0;*/
             break;
 
         case SIGUSR1:
-            sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
+            /*sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
             if (sem_value == 0) {
                 unlock(id_sem_writers_block_id);
-            }
+            }*/
             active_users--;
             break;
 
