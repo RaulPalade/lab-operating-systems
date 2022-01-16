@@ -97,6 +97,16 @@ typedef struct {
     transaction t;
 } user_node_message;
 
+typedef struct {
+    int hops;
+    transaction t;
+} traveler_transaction;
+
+typedef struct {
+    long mtype;
+    traveler_transaction t;
+} node_friends_message;
+
 int equal_transaction(transaction, transaction);
 
 int array_contains(transaction *, transaction);

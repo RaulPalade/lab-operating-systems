@@ -56,7 +56,7 @@ int main() {
     child_data top_users[N_USER_TO_DISPLAY];
     child_data worst_users[N_USER_TO_DISPLAY];
 
-    char *args_node[12] = {NODE};
+    char *args_node[13] = {NODE};
     char *args_user[17] = {USER};
     char index_node[3 * sizeof(int) + 1];
     char index_user[3 * sizeof(int) + 1];
@@ -64,6 +64,7 @@ int main() {
     char so_tp_size[3 * sizeof(int) + 1];
     char so_min_trans_proc_nsec[3 * sizeof(int) + 1];
     char so_max_trans_proc_nsec[3 * sizeof(int) + 1];
+    char so_friends_num[3 * sizeof(int) + 1];
 
     char so_budget_init[3 * sizeof(int) + 1];
     char so_retry[3 * sizeof(int) + 1];
@@ -179,6 +180,7 @@ int main() {
     sprintf(so_tp_size, "%d", config.SO_TP_SIZE);
     sprintf(so_min_trans_proc_nsec, "%d", config.SO_MIN_TRANS_PROC_NSEC);
     sprintf(so_max_trans_proc_nsec, "%d", config.SO_MAX_TRANS_PROC_NSEC);
+    sprintf(so_friends_num, "%d", config.SO_FRIENDS_NUM);
 
     sprintf(so_budget_init, "%d", config.SO_BUDGET_INIT);
     sprintf(so_retry, "%d", config.SO_RETRY);
@@ -208,7 +210,8 @@ int main() {
     args_node[8] = id_msg_user_node_str;
     args_node[9] = id_sem_init_str;
     args_node[10] = id_sem_writers_block_id_str;
-    args_node[11] = NULL;
+    args_node[11] = so_users_num;
+    args_node[12] = NULL;
 
     args_user[2] = so_budget_init;
     args_user[3] = so_retry;

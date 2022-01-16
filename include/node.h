@@ -25,4 +25,6 @@ void update_info();
 
 void clean_transaction_pool();
 
+void add_new_friend(pid_t node);
+
 void handler(int);

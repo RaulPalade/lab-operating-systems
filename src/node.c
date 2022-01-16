@@ -20,6 +20,7 @@ int node_index;
 int so_tp_size;
 int so_min_trans_proc_nsec;
 int so_max_trans_proc_nsec;
+int so_friends_num;
 
 transaction_pool pool;
 int transaction_pool_size = 0;
@@ -74,6 +75,7 @@ int main(int argc, char *argv[]) {
     /* SEMAPHORE CREATION */
     id_sem_init = atoi(argv[9]);
     id_sem_writers_block_id = atoi(argv[10]);
+    so_friends_num = atoi(argv[11]);
 
     pool.transactions = malloc(so_tp_size * sizeof(transaction));
 
