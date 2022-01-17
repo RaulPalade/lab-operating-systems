@@ -21,7 +21,7 @@ int id_shm_readers_block_id;
 /* MESSAGE QUEUE */
 int id_msg_node_user;
 int id_msg_user_node;
-int id_msg_master_node_nf;
+int id_msg_master_node_friend_list;
 int id_msg_node_friends;
 int id_msg_node_master;
 int id_msg_master_node_new_friend;
@@ -174,7 +174,7 @@ int main() {
 
     key = ftok("../makefile", PROJ_ID_MSG_MASTER_NODE_NF);
     EXIT_ON_ERROR
-    id_msg_master_node_nf = msgget(key, IPC_CREAT | 0666);
+    id_msg_master_node_friend_list = msgget(key, IPC_CREAT | 0666);
     EXIT_ON_ERROR
 
     key = ftok("../makefile", PROJ_ID_MSG_NODE_FRIENDS);
@@ -237,7 +237,7 @@ int main() {
 
     sprintf(id_msg_node_user_str, "%d", id_msg_node_user);
     sprintf(id_msg_user_node_str, "%d", id_msg_user_node);
-    sprintf(id_msg_master_node_nf_str, "%d", id_msg_master_node_nf);
+    sprintf(id_msg_master_node_nf_str, "%d", id_msg_master_node_friend_list);
     sprintf(id_msg_node_friends_str, "%d", id_msg_node_friends);
     sprintf(id_msg_node_master_str, "%d", id_msg_node_master);
     sprintf(id_msg_master_node_new_friend_str, "%d", id_msg_master_node_new_friend);
@@ -298,11 +298,20 @@ int main() {
 
     for (i = 0; i < config.SO_NODES_NUM; i++) {
         master_node_fl_msg.mtype = node_list[i];
-        master_node_fl_msg.friends = get_random_friends(tmp_node_list[i]);
+        /*master_node_fl_msg.friends = get_random_friends(tmp_node_list[i]);*/
+        master_node_fl_msg.friends[0] = 1111;
+        master_node_fl_msg.friends[1] = 2222;
+        master_node_fl_msg.friends[2] = 3333;
+        master_node_fl_msg.friends[3] = 4444;
+        master_node_fl_msg.friends[4] = 5555;
+        master_node_fl_msg.friends[5] = 6666;
         /*for (j = 0; j < config.SO_FRIENDS_NUM; j++) {
-            printf("%d\n", master_node_fl_msg.friends[j]);
+            printf("%ld\n", master_node_fl_msg.mtype);
         }*/
-        msgsnd(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), IPC_NOWAIT);
+        msgsnd(id_msg_master_node_friend_list, &master_node_fl_msg, sizeof(master_node_fl_message), 0);
+        /*msgrcv(id_msg_master_node_friend_list, &master_node_fl_msg, sizeof(master_node_fl_message), 1,
+               IPC_NOWAIT);
+        printf("master_node_fl_msg=%d\n", master_node_fl_msg.friends[0]);*/
     }
 
     for (user_i = 0; user_i < config.SO_USERS_NUM; user_i++) {
@@ -347,9 +356,9 @@ int main() {
                     tmp_node_list[node_i] = node_pid;
             }
 
-            master_node_fl_msg.mtype = node_list[node_i];
+            /*master_node_fl_msg.mtype = node_list[node_i];
             master_node_fl_msg.friends = get_random_friends(tmp_node_list[node_i]);
-            msgsnd(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), 0);
+            msgsnd(id_msg_master_node_friend_list, &master_node_fl_msg, sizeof(master_node_fl_message), 0);
             node_master_msg.mytype = node_pid;
             msgsnd(id_msg_node_master, &node_master_msg, sizeof(node_master_message), 0);
             node_i++;
@@ -359,7 +368,7 @@ int main() {
                 master_node_new_friend_msg.new_friend = node_list[i];
                 msgsnd(id_msg_master_node_new_friend, &master_node_new_friend_msg,
                        sizeof(master_node_new_friend_message), 0);
-            }
+            }*/
         }
 
         lock(id_sem_writers_block_id);
@@ -377,7 +386,7 @@ int main() {
             add_min(worst_users, user_list[i], user_balance);
         }
 
-        print_live_info(top_nodes, top_users, worst_users);
+        /*print_live_info(top_nodes, top_users, worst_users);*/
 
         nanosleep(&request, &remaining);
     }
@@ -438,10 +447,6 @@ pid_t *get_random_friends(pid_t node) {
             friend_list[added++] = tmp_node_list[i];
         }
     }
-
-    /*for (i = 0; i < config.SO_FRIENDS_NUM; i++) {
-        printf("Node %d friends[%d]=%d\n", node, i, friend_list[i]);
-    }*/
 
     return friend_list;
 }

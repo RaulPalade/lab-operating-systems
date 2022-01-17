@@ -108,7 +108,7 @@ typedef struct {
 
 typedef struct {
     long mtype;
-    pid_t *friends;
+    pid_t friends[50];
 } master_node_fl_message;
 
 typedef struct {

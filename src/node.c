@@ -11,7 +11,7 @@ int id_shm_block_id;
 /* MESSAGE QUEUE */
 int id_msg_node_user;
 int id_msg_user_node;
-int id_msg_master_node_nf;
+int id_msg_master_node_friend_list;
 int id_msg_node_friends;
 int id_msg_node_master;
 int id_msg_master_node_new_friend;
@@ -40,7 +40,7 @@ node_master_message node_master_msg;
 master_node_new_friend_message master_node_new_friend_msg;
 struct timeval timer;
 
-pid_t *node_friends;
+pid_t node_friends[10];
 
 /**
  * NODE PROCESS
@@ -62,6 +62,7 @@ int main(int argc, char *argv[]) {
     transaction *transactions;
     block block;
     struct sigaction sa;
+    struct msqid_ds q_ds;
 
     bzero(&sa, sizeof(sa));
     sa.sa_handler = handler;
@@ -94,7 +95,7 @@ int main(int argc, char *argv[]) {
     so_friends_num = atoi(argv[11]);
 
     /* EXTRA */
-    id_msg_master_node_nf = atoi(argv[12]);
+    id_msg_master_node_friend_list = atoi(argv[12]);
     id_msg_node_friends = atoi(argv[13]);
     so_hops = atoi(argv[14]);
     id_msg_node_master = atoi(argv[15]);
@@ -102,9 +103,18 @@ int main(int argc, char *argv[]) {
 
     pool.transactions = malloc(so_tp_size * sizeof(transaction));
 
-    if (msgrcv(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), getpid(), IPC_NOWAIT) !=
+    msgctl(id_msg_master_node_friend_list, IPC_STAT, &q_ds);
+    printf("Node %d messagges in queue = %lu\n", getpid(), q_ds.msg_qnum);
+
+    if (msgrcv(id_msg_master_node_friend_list, &master_node_fl_msg, sizeof(master_node_fl_message), getpid(), 0) !=
         -1) {
+/*
         node_friends = master_node_fl_msg.friends;
+*/
+        printf("Here");
+        for (i = 0; i < so_friends_num; i++) {
+            printf("NODE %d node_friends[%d]=%d\n", getpid(), i, master_node_fl_msg.friends[i]);
+        }
     }
 
     if (msgrcv(id_msg_node_master, &node_master_msg, sizeof(node_master_message), getpid(), IPC_NOWAIT) != -1) {
@@ -114,6 +124,10 @@ int main(int argc, char *argv[]) {
     wait_for_master(id_sem_init);
 
     while (1) {
+        if (msgrcv(id_msg_node_master, &node_master_msg, sizeof(node_master_message), getpid(), IPC_NOWAIT) != -1) {
+            add_to_transaction_pool(node_master_msg.t);
+        }
+
         if (msgrcv(id_msg_master_node_new_friend, &master_node_new_friend_msg, sizeof(master_node_new_friend_message),
                    getpid(),
                    IPC_NOWAIT) != -1) {
@@ -144,9 +158,10 @@ int main(int argc, char *argv[]) {
                 msgsnd(id_msg_node_user, &user_node_msg, sizeof(user_node_message), 0);
             } else {
                 if (transaction_pool_size >= 1) {
-                    printf("Send new friend transaction\n");
+                    /*printf("Send new friend transaction\n");*/
                     time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
                     node_friends_msg.mtype = get_random_friend();
+                    /*printf("node_friends_msg.mtype=%ld\n", node_friends_msg.mtype);*/
                     node_friends_msg.f_transaction.hops = 0;
                     node_friends_msg.f_transaction.t = pool.transactions[0];
                 }
@@ -174,20 +189,22 @@ int main(int argc, char *argv[]) {
 }
 
 pid_t get_random_friend() {
-    pid_t friend;
+    int random;
     int lower = 0;
     int upper = so_friends_num;
     struct timespec tp;
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_nsec);
-    friend = (rand() % (upper - lower)) + lower;
-    return friend;
+    random = (rand() % (upper - lower)) + lower;
+    /*printf("Random = %d\n", random);
+    printf("node_friends[random] = %d\n", node_friends[random]);*/
+    return node_friends[random];
 }
 
 void add_new_friend(pid_t node) {
-    new_friends++;
+    /*new_friends++;
     node_friends = realloc(node_friends, (so_friends_num + new_friends) * sizeof(pid_t));
-    node_friends[so_friends_num + new_friends] = node;
+    node_friends[so_friends_num + new_friends] = node;*/
 }
 
 int add_to_transaction_pool(transaction t) {
@@ -310,19 +327,16 @@ void clean_transaction_pool() {
 void handler(int signal) {
     switch (signal) {
         case SIGINT:
-            free(node_friends);
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             break;
 
         case SIGTERM:
-            free(node_friends);
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             exit(0);
 
         case SIGQUIT:
-            free(node_friends);
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             break;
