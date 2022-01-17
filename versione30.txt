@@ -8,14 +8,12 @@ MASTER
 2) Crea una nuovo processo nodo
 3) Gli aggiunge la transazione
 4) Gli assegna SO_FRIENDS_NUM amici
-5) Estrae random SO_NUM_FRIENDS
-6) Invia ad ognugno il nuovo pid da aggiungere come amico
+5) Invia ad ognugno il nuovo pid da aggiungere come amico
 
 NODO:
 1) Alloca dinamicamente la lista degli amici di dimensione SO_FRIENDS_NUM
 2) Nel ciclo di vita periodicamente(?) estrae una transazione dalla TP
-3) Incrementa il campo hops
-4) La iniva sulla coda di messaggi dedicata
+3) La iniva sulla coda di messaggi dedicata
 
 1) Riceve una transazione da un nodo amico
 2) Se la TP è piena la inivia ad un altro amico

@@ -35,6 +35,10 @@ void add_min(child_data *, pid_t, int);
 
 void init_array(child_data *, int);
 
+void shuffle(int *);
+
+pid_t *get_random_friends(pid_t node);
+
 void print_live_info(child_data *, child_data *, child_data *);
 
 int compare(const void *, const void *);

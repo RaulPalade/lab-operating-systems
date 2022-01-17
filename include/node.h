@@ -2,6 +2,7 @@
 #include "semlib.h"
 
 #define SENDER_TRANSACTION_REWARD -1
+#define TIMER_NEW_FRIEND_TRANSACTION 20
 
 typedef struct {
     transaction *transactions;
@@ -26,5 +27,7 @@ void update_info();
 void clean_transaction_pool();
 
 void add_new_friend(pid_t node);
+
+pid_t get_random_friend();
 
 void handler(int);

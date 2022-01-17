@@ -8,6 +8,9 @@ ledger (*master_ledger);
 pid_t *user_list;
 int *block_id;
 int *readers_block_id;
+master_node_fl_message master_node_fl_msg;
+node_master_message node_master_msg;
+master_node_new_friend_message master_node_new_friend_msg;
 
 /* SHARED MEMORY */
 int id_shm_ledger;
@@ -18,6 +21,10 @@ int id_shm_readers_block_id;
 /* MESSAGE QUEUE */
 int id_msg_node_user;
 int id_msg_user_node;
+int id_msg_master_node_nf;
+int id_msg_node_friends;
+int id_msg_node_master;
+int id_msg_master_node_new_friend;
 
 /* SEMAPHORE */
 int id_sem_init;
@@ -33,8 +40,10 @@ int final_alive_users = 0;
 
 int initial_total_funds;
 int final_total_funds;
+int new_nodes;
 
 pid_t *node_list;
+pid_t *tmp_node_list;
 
 /**
  * MASTER PROCESS
@@ -49,14 +58,19 @@ pid_t *node_list;
  */
 int main() {
     int i;
+    int j;
+    int node_i;
+    int user_i;
     int node_balance;
     int user_balance;
     int tmp_block_id;
+    int *random_index;
+
     child_data top_nodes[N_USER_TO_DISPLAY];
     child_data top_users[N_USER_TO_DISPLAY];
     child_data worst_users[N_USER_TO_DISPLAY];
 
-    char *args_node[13] = {NODE};
+    char *args_node[18] = {NODE};
     char *args_user[17] = {USER};
     char index_node[3 * sizeof(int) + 1];
     char index_user[3 * sizeof(int) + 1];
@@ -65,6 +79,7 @@ int main() {
     char so_min_trans_proc_nsec[3 * sizeof(int) + 1];
     char so_max_trans_proc_nsec[3 * sizeof(int) + 1];
     char so_friends_num[3 * sizeof(int) + 1];
+    char so_hopes_num[3 * sizeof(int) + 1];
 
     char so_budget_init[3 * sizeof(int) + 1];
     char so_retry[3 * sizeof(int) + 1];
@@ -79,6 +94,10 @@ int main() {
     char id_shm_user_list_str[3 * sizeof(int) + 1];
     char id_msg_node_user_str[3 * sizeof(int) + 1];
     char id_msg_user_node_str[3 * sizeof(int) + 1];
+    char id_msg_master_node_nf_str[3 * sizeof(int) + 1];
+    char id_msg_node_friends_str[3 * sizeof(int) + 1];
+    char id_msg_node_master_str[3 * sizeof(int) + 1];
+    char id_msg_master_node_new_friend_str[3 * sizeof(int) + 1];
     char id_sem_init_str[3 * sizeof(int) + 1];
     char id_sem_writers_block_id_str[3 * sizeof(int) + 1];
     char id_sem_readers_block_id_str[3 * sizeof(int) + 1];
@@ -110,6 +129,7 @@ int main() {
     read_configuration(&config);
 
     node_list = malloc(config.SO_NODES_NUM * sizeof(pid_t));
+    tmp_node_list = malloc(config.SO_NODES_NUM * sizeof(pid_t));
 
     /* SHARED MEMORY CREATION */
     key = ftok("../makefile", PROJ_ID_SHM_LEDGER);
@@ -152,6 +172,26 @@ int main() {
     id_msg_user_node = msgget(key, IPC_CREAT | 0666);
     EXIT_ON_ERROR
 
+    key = ftok("../makefile", PROJ_ID_MSG_MASTER_NODE_NF);
+    EXIT_ON_ERROR
+    id_msg_master_node_nf = msgget(key, IPC_CREAT | 0666);
+    EXIT_ON_ERROR
+
+    key = ftok("../makefile", PROJ_ID_MSG_NODE_FRIENDS);
+    EXIT_ON_ERROR
+    id_msg_node_friends = msgget(key, IPC_CREAT | 0666);
+    EXIT_ON_ERROR
+
+    key = ftok("../makefile", PROJ_ID_MSG_NODE_MASTER);
+    EXIT_ON_ERROR
+    id_msg_node_master = msgget(key, IPC_CREAT | 0666);
+    EXIT_ON_ERROR
+
+    key = ftok("../makefile", PROJ_ID_MSG_MASTER_NEW_FRIEND);
+    EXIT_ON_ERROR
+    id_msg_master_node_new_friend = msgget(key, IPC_CREAT | 0666);
+    EXIT_ON_ERROR
+
     /* SEMAPHORE CREATION */
     key = ftok("../makefile", PROJ_ID_SEM_INIT);
     EXIT_ON_ERROR
@@ -181,6 +221,7 @@ int main() {
     sprintf(so_min_trans_proc_nsec, "%d", config.SO_MIN_TRANS_PROC_NSEC);
     sprintf(so_max_trans_proc_nsec, "%d", config.SO_MAX_TRANS_PROC_NSEC);
     sprintf(so_friends_num, "%d", config.SO_FRIENDS_NUM);
+    sprintf(so_hopes_num, "%d", config.SO_HOPS);
 
     sprintf(so_budget_init, "%d", config.SO_BUDGET_INIT);
     sprintf(so_retry, "%d", config.SO_RETRY);
@@ -196,6 +237,10 @@ int main() {
 
     sprintf(id_msg_node_user_str, "%d", id_msg_node_user);
     sprintf(id_msg_user_node_str, "%d", id_msg_user_node);
+    sprintf(id_msg_master_node_nf_str, "%d", id_msg_master_node_nf);
+    sprintf(id_msg_node_friends_str, "%d", id_msg_node_friends);
+    sprintf(id_msg_node_master_str, "%d", id_msg_node_master);
+    sprintf(id_msg_master_node_new_friend_str, "%d", id_msg_master_node_new_friend);
 
     sprintf(id_sem_init_str, "%d", id_sem_init);
     sprintf(id_sem_writers_block_id_str, "%d", id_sem_writers_block_id);
@@ -211,7 +256,12 @@ int main() {
     args_node[9] = id_sem_init_str;
     args_node[10] = id_sem_writers_block_id_str;
     args_node[11] = so_users_num;
-    args_node[12] = NULL;
+    args_node[12] = id_msg_master_node_nf_str;
+    args_node[13] = id_msg_node_friends_str;
+    args_node[14] = so_hopes_num;
+    args_node[15] = id_msg_node_master_str;
+    args_node[16] = id_msg_master_node_new_friend_str;
+    args_node[17] = NULL;
 
     args_user[2] = so_budget_init;
     args_user[3] = so_retry;
@@ -229,34 +279,42 @@ int main() {
     args_user[15] = id_sem_readers_block_id_str;
     args_user[16] = NULL;
 
-    for (i = 0; i < config.SO_NODES_NUM; i++) {
+    for (node_i = 0; node_i < config.SO_NODES_NUM; node_i++) {
         switch (node_pid = fork()) {
             case -1:
                 EXIT_ON_ERROR
 
             case 0:
-                sprintf(index_node, "%d", i);
+                sprintf(index_node, "%d", node_i);
                 args_node[1] = index_node;
                 execv("node", args_node);
 
             default:
-                node_list[i] = node_pid;
+                random_index[node_i] = node_i;
+                node_list[node_i] = node_pid;
+                tmp_node_list[node_i] = node_pid;
                 active_nodes++;
         }
     }
 
-    for (i = 0; i < config.SO_USERS_NUM; i++) {
+    for (i = 0; i < config.SO_NODES_NUM + new_nodes; i++) {
+        master_node_fl_msg.mtype = node_list[i];
+        master_node_fl_msg.friends = get_random_friends(tmp_node_list[i]);
+        msgsnd(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), 0);
+    }
+
+    for (user_i = 0; user_i < config.SO_USERS_NUM; user_i++) {
         switch (user_pid = fork()) {
             case -1:
                 EXIT_ON_ERROR
 
             case 0:
-                sprintf(index_user, "%d", i);
+                sprintf(index_user, "%d", user_i);
                 args_user[1] = index_user;
                 execv("user", args_user);
 
             default:
-                user_list[i] = user_pid;
+                user_list[user_i] = user_pid;
                 initial_total_funds += 1000;
                 active_users++;
         }
@@ -268,6 +326,40 @@ int main() {
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
+        if (msgrcv(id_msg_node_master, &node_master_msg, sizeof(node_master_message), getpid(), IPC_NOWAIT) != -1) {
+            switch (node_pid = fork()) {
+                case -1:
+                    EXIT_ON_ERROR
+
+                case 0:
+                    sprintf(index_node, "%d", node_i);
+                    args_node[1] = index_node;
+                    execv("node", args_node);
+
+                default:
+                    active_nodes++;
+                    new_nodes++;
+                    node_list = realloc(node_list, sizeof(pid_t) * (config.SO_NODES_NUM + new_nodes));
+                    tmp_node_list = realloc(tmp_node_list, sizeof(pid_t) * (config.SO_NODES_NUM + new_nodes));
+                    node_list[node_i] = node_pid;
+                    tmp_node_list[node_i] = node_pid;
+            }
+
+            master_node_fl_msg.mtype = node_list[node_i];
+            master_node_fl_msg.friends = get_random_friends(tmp_node_list[node_i]);
+            msgsnd(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), 0);
+            node_master_msg.mytype = node_pid;
+            msgsnd(id_msg_node_master, &node_master_msg, sizeof(node_master_message), 0);
+            node_i++;
+
+            for (i = 0; i < config.SO_NODES_NUM; i++) {
+                master_node_new_friend_msg.mtype = node_list[i];
+                master_node_new_friend_msg.new_friend = node_list[i];
+                msgsnd(id_msg_master_node_new_friend, &master_node_new_friend_msg,
+                       sizeof(master_node_new_friend_message), 0);
+            }
+        }
+
         lock(id_sem_writers_block_id);
         tmp_block_id = *block_id;
         unlock(id_sem_writers_block_id);
@@ -313,6 +405,38 @@ int main() {
     cleanIPC();
 
     return 0;
+}
+
+void shuffle(int *array) {
+    size_t i;
+    size_t j;
+    int tmp;
+    struct timespec tp;
+
+    clock_gettime(CLOCK_REALTIME, &tp);
+    srand(tp.tv_nsec);
+    if (config.SO_NODES_NUM > 1) {
+        for (i = 0; i < config.SO_NODES_NUM - 1; i++) {
+            j = i + rand() / (RAND_MAX / (config.SO_NODES_NUM - i) + 1);
+            tmp = array[j];
+            array[j] = array[i];
+            array[i] = tmp;
+        }
+    }
+}
+
+pid_t *get_random_friends(pid_t node) {
+    int i;
+    pid_t *friend_list = malloc(config.SO_FRIENDS_NUM * sizeof(pid_t));
+    shuffle(tmp_node_list);
+
+    for (i = 0; i < config.SO_FRIENDS_NUM; i++) {
+        if (tmp_node_list[i] != node) {
+            friend_list[i] = tmp_node_list[i];
+        }
+    }
+
+    return friend_list;
 }
 
 void print_live_info(child_data *top_nodes, child_data *top_users, child_data *worst_users) {
@@ -490,7 +614,7 @@ void read_configuration(configuration *config) {
     FILE *file;
     char s[23];
     char comment;
-    char filename[] = "../configurations/configuration2.conf";
+    char filename[] = "../configurations/configuration1.conf";
     int value;
     int i;
 

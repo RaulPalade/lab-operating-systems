@@ -35,7 +35,6 @@ int so_min_trans_gen_nsec;
 int so_max_trans_gen_nsec;
 int so_users_num;
 
-int balance = 0;
 int dying = 0;
 int n_processing_transactions = 0;
 int last_block_checked = 0;
@@ -66,7 +65,6 @@ int main(int argc, char *argv[]) {
     user_index = atoi(argv[1]);
 
     so_budget_init = atoi(argv[2]);
-    balance = so_budget_init;
     so_retry = atoi(argv[3]);
     so_min_trans_gen_nsec = atoi(argv[4]);
     so_max_trans_gen_nsec = atoi(argv[5]);
@@ -104,9 +102,10 @@ int main(int argc, char *argv[]) {
         if (msgrcv(id_msg_node_user, &user_node_msg, sizeof(user_node_msg), getpid(), IPC_NOWAIT) != -1) {
             for (i = 0; i < n_processing_transactions; i++) {
                 if (equal_transaction(user_node_msg.t, processing_transactions[i])) {
-                    balance += user_node_msg.t.amount;
-                    balance += user_node_msg.t.reward;
+                    so_budget_init += user_node_msg.t.amount;
+                    so_budget_init += user_node_msg.t.reward;
                     remove_from_processing_list(i);
+                    printf("Here\n");
                 }
             }
         }
@@ -116,6 +115,7 @@ int main(int argc, char *argv[]) {
 }
 
 int calculate_balance() {
+    int balance = so_budget_init;
     int i;
     int j;
     int y;
@@ -126,31 +126,32 @@ int calculate_balance() {
     tmp_block_id = *block_id;
     unlock(id_sem_writers_block_id);
 
-    if (last_block_checked != tmp_block_id) {
-        for (i = last_block_checked; i < tmp_block_id; i++) {
-            for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
-                if (master_ledger->blocks[i].transactions[j].sender == getpid()) {
-                    balance -= master_ledger->blocks[i].transactions[j].amount;
-                    balance -= master_ledger->blocks[i].transactions[j].reward;
-                } else if (master_ledger->blocks[i].transactions[j].receiver == getpid()) {
-                    balance += master_ledger->blocks[i].transactions[j].amount;
-                }
+    /*if (last_block_checked != tmp_block_id) {*/
+    for (i = 0; i < tmp_block_id; i++) {
+        for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
+            if (master_ledger->blocks[i].transactions[j].sender == getpid()) {
+                balance -= master_ledger->blocks[i].transactions[j].amount;
+                balance -= master_ledger->blocks[i].transactions[j].reward;
+            } else if (master_ledger->blocks[i].transactions[j].receiver == getpid()) {
+                balance += master_ledger->blocks[i].transactions[j].amount;
+            }
 
-                for (y = 0; y < n_processing_transactions && !equal; y++) {
-                    if (equal_transaction(master_ledger->blocks[i].transactions[j], processing_transactions[y])) {
-                        equal = 1;
-                        remove_from_processing_list(y);
-                    }
+            for (y = 0; y < n_processing_transactions && !equal; y++) {
+                if (equal_transaction(master_ledger->blocks[i].transactions[j], processing_transactions[y])) {
+                    equal = 1;
+                    remove_from_processing_list(y);
                 }
             }
         }
-
-        last_block_checked = tmp_block_id;
-
-        for (y = 0; y < n_processing_transactions; y++) {
-            balance -= processing_transactions[y].amount + processing_transactions[y].reward;
-        }
     }
+
+    last_block_checked = tmp_block_id;
+
+    for (y = 0; y < n_processing_transactions; y++) {
+        balance -= processing_transactions[y].amount + processing_transactions[y].reward;
+    }
+
+    /*}*/
     return balance;
 }
 
@@ -160,7 +161,7 @@ transaction new_transaction() {
     int toUser;
     int random;
     int lower = 2;
-    int upper = balance;
+    int upper = calculate_balance();
     struct timespec tp;
 
     clock_gettime(CLOCK_REALTIME, &tp);
@@ -184,7 +185,7 @@ void execute_transaction() {
     int random;
     struct timespec request, remaining;
     transaction transaction;
-    calculate_balance();
+    int balance = calculate_balance();
     if (balance >= 2) {
         transaction = new_transaction();
         user_node_msg.mtype = 1;
@@ -208,8 +209,7 @@ void execute_transaction() {
 }
 
 void add_to_processing_list(transaction t) {
-    processing_transactions = realloc(processing_transactions,
-                                      (n_processing_transactions + 1) * sizeof(transaction));
+    processing_transactions = realloc(processing_transactions, (n_processing_transactions + 1) * sizeof(transaction));
     processing_transactions[n_processing_transactions] = t;
     n_processing_transactions++;
 }

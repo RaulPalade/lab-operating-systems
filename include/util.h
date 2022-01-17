@@ -18,11 +18,11 @@
 #include <sys/time.h>
 #include <assert.h>
 
-/*#define SO_BLOCK_SIZE 100
-#define SO_REGISTRY_SIZE 1000*/
+#define SO_BLOCK_SIZE 100
+#define SO_REGISTRY_SIZE 1000
 
-#define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 10000
+/*#define SO_BLOCK_SIZE 10
+#define SO_REGISTRY_SIZE 10000*/
 
 /*#define SO_BLOCK_SIZE 10
 #define SO_REGISTRY_SIZE 1000*/
@@ -46,10 +46,14 @@
 
 #define PROJ_ID_MSG_NODE_USER 'g'
 #define PROJ_ID_MSG_USER_NODE 'h'
+#define PROJ_ID_MSG_MASTER_NODE_NF 'i'
+#define PROJ_ID_MSG_NODE_FRIENDS 'l'
+#define PROJ_ID_MSG_NODE_MASTER 'm'
+#define PROJ_ID_MSG_MASTER_NEW_FRIEND 'n'
 
-#define PROJ_ID_SEM_INIT 'i'
-#define PROJ_ID_SEM_WRITERS 'l'
-#define PROJ_ID_SEM_READERS_BLOCK_ID 'm'
+#define PROJ_ID_SEM_INIT 'o'
+#define PROJ_ID_SEM_WRITERS 'p'
+#define PROJ_ID_SEM_READERS_BLOCK_ID 'q'
 
 #define EXIT_ON_ERROR                                                                                           \
     if (errno) {                                                                                                \
@@ -91,6 +95,11 @@ typedef struct {
     block blocks[SO_REGISTRY_SIZE];
 } ledger;
 
+typedef struct {
+    int hops;
+    transaction t;
+} friend_transaction;
+
 /* MESSAGE QUEUE STRUCTURES */
 typedef struct {
     long mtype;
@@ -98,14 +107,24 @@ typedef struct {
 } user_node_message;
 
 typedef struct {
-    int hops;
-    transaction t;
-} traveler_transaction;
+    long mtype;
+    pid_t *friends;
+} master_node_fl_message;
 
 typedef struct {
     long mtype;
-    traveler_transaction t;
+    friend_transaction f_transaction;
 } node_friends_message;
+
+typedef struct {
+    long mytype;
+    transaction t;
+} node_master_message;
+
+typedef struct {
+    long mtype;
+    pid_t new_friend;
+} master_node_new_friend_message;
 
 int equal_transaction(transaction, transaction);
 
