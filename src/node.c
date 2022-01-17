@@ -54,6 +54,7 @@ pid_t *node_friends;
 
 int main(int argc, char *argv[]) {
     int i;
+    int j;
     int time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
     int user_receive_success;
     int friend_receive_success;
@@ -101,8 +102,6 @@ int main(int argc, char *argv[]) {
 
     pool.transactions = malloc(so_tp_size * sizeof(transaction));
 
-    wait_for_master(id_sem_init);
-
     if (msgrcv(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), getpid(), IPC_NOWAIT) !=
         -1) {
         node_friends = master_node_fl_msg.friends;
@@ -112,6 +111,8 @@ int main(int argc, char *argv[]) {
         add_to_transaction_pool(node_master_msg.t);
     }
 
+    wait_for_master(id_sem_init);
+
     while (1) {
         if (msgrcv(id_msg_master_node_new_friend, &master_node_new_friend_msg, sizeof(master_node_new_friend_message),
                    getpid(),
@@ -120,8 +121,9 @@ int main(int argc, char *argv[]) {
         }
 
         /* FRIEND TRANSACTION */
-        if (msgrcv(id_msg_node_friends, &node_friends_msg, sizeof(node_friends_message), getpid(), IPC_NOWAIT) != -1) {
+        if (msgrcv(id_msg_node_friends, &node_friends_msg, sizeof(node_friends_message), getpid(), 0) != -1) {
             friend_receive_success = add_to_transaction_pool(node_friends_msg.f_transaction.t);
+            print_transaction(node_friends_msg.f_transaction.t);
             if (!friend_receive_success) {
                 node_friends_msg.f_transaction.hops++;
                 if (node_friends_msg.f_transaction.hops > so_hops) {
@@ -142,7 +144,15 @@ int main(int argc, char *argv[]) {
                 user_node_msg.mtype = user_node_msg.t.sender;
                 msgsnd(id_msg_node_user, &user_node_msg, sizeof(user_node_message), 0);
             } else {
-                if (time_to_send == 0 && transaction_pool_size >= 1) {
+                if (transaction_pool_size >= 1) {
+                    printf("Send new friend transaction\n");
+                    time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
+                    node_friends_msg.mtype = get_random_friend();
+                    node_friends_msg.f_transaction.hops = 0;
+                    node_friends_msg.f_transaction.t = pool.transactions[0];
+                }
+                /*if (time_to_send == 0 && transaction_pool_size >= 1) {
+                    printf("Send new friend transaction\n");
                     time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
                     node_friends_msg.mtype = get_random_friend();
                     node_friends_msg.f_transaction.hops = 0;
@@ -157,10 +167,9 @@ int main(int argc, char *argv[]) {
                             remove_from_transaction_pool(transactions[i]);
                         }
                     }
-                }
+                }*/
             }
         }
-
         time_to_send--;
     }
 }

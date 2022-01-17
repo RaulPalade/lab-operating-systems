@@ -290,17 +290,16 @@ int main() {
                 execv("node", args_node);
 
             default:
-                random_index[node_i] = node_i;
                 node_list[node_i] = node_pid;
                 tmp_node_list[node_i] = node_pid;
                 active_nodes++;
         }
     }
 
-    for (i = 0; i < config.SO_NODES_NUM + new_nodes; i++) {
+    for (i = 0; i < config.SO_NODES_NUM; i++) {
         master_node_fl_msg.mtype = node_list[i];
         master_node_fl_msg.friends = get_random_friends(tmp_node_list[i]);
-        msgsnd(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), 0);
+        msgsnd(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), IPC_NOWAIT);
     }
 
     for (user_i = 0; user_i < config.SO_USERS_NUM; user_i++) {
@@ -384,7 +383,7 @@ int main() {
 
     print_ledger();
 
-    printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
+    /*printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
     printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
     printf("%s\n", ANSI_COLOR_GREEN "===============================" ANSI_COLOR_RESET);
     for (i = 0; i < config.SO_NODES_NUM; i++) {
@@ -398,7 +397,7 @@ int main() {
     for (i = 0; i < config.SO_USERS_NUM; i++) {
         user_balance = calculate_user_balance(user_list[i], *block_id);
         printf("%8d    %5s    %8d\n", user_list[i], "|", user_balance);
-    }
+    }*/
 
     print_final_report();
 
@@ -427,14 +426,19 @@ void shuffle(int *array) {
 
 pid_t *get_random_friends(pid_t node) {
     int i;
+    int added = 0;
     pid_t *friend_list = malloc(config.SO_FRIENDS_NUM * sizeof(pid_t));
     shuffle(tmp_node_list);
 
-    for (i = 0; i < config.SO_FRIENDS_NUM; i++) {
+    for (i = 0; i < config.SO_NODES_NUM && added < config.SO_FRIENDS_NUM; i++) {
         if (tmp_node_list[i] != node) {
-            friend_list[i] = tmp_node_list[i];
+            friend_list[added++] = tmp_node_list[i];
         }
     }
+
+    /*for (i = 0; i < config.SO_FRIENDS_NUM; i++) {
+        printf("Node %d friends[%d]=%d\n", node, i, friend_list[i]);
+    }*/
 
     return friend_list;
 }

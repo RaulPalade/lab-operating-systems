@@ -126,7 +126,6 @@ int calculate_balance() {
     tmp_block_id = *block_id;
     unlock(id_sem_writers_block_id);
 
-    /*if (last_block_checked != tmp_block_id) {*/
     for (i = 0; i < tmp_block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
             if (master_ledger->blocks[i].transactions[j].sender == getpid()) {
@@ -151,7 +150,6 @@ int calculate_balance() {
         balance -= processing_transactions[y].amount + processing_transactions[y].reward;
     }
 
-    /*}*/
     return balance;
 }
 

@@ -2,7 +2,7 @@
 #include "semlib.h"
 
 #define SENDER_TRANSACTION_REWARD -1
-#define TIMER_NEW_FRIEND_TRANSACTION 20
+#define TIMER_NEW_FRIEND_TRANSACTION 1
 
 typedef struct {
     transaction *transactions;
