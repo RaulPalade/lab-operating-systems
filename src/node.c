@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
         }
 
         /* FRIEND TRANSACTION */
-        if (msgrcv(id_msg_node_friends, &node_friends_msg, sizeof(node_friends_message), getpid(), 0) != -1) {
+        if (msgrcv(id_msg_node_friends, &node_friends_msg, sizeof(node_friends_message), getpid(), IPC_NOWAIT) != -1) {
             friend_receive_success = add_to_transaction_pool(node_friends_msg.f_transaction.t);
             print_transaction(node_friends_msg.f_transaction.t);
             if (!friend_receive_success) {
@@ -135,7 +135,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-
 
         /* USER TRANSACTION */
         if (msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 1, IPC_NOWAIT) != -1) {

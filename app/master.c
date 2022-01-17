@@ -255,7 +255,7 @@ int main() {
     args_node[8] = id_msg_user_node_str;
     args_node[9] = id_sem_init_str;
     args_node[10] = id_sem_writers_block_id_str;
-    args_node[11] = so_users_num;
+    args_node[11] = so_friends_num;
     args_node[12] = id_msg_master_node_nf_str;
     args_node[13] = id_msg_node_friends_str;
     args_node[14] = so_hopes_num;
@@ -299,6 +299,9 @@ int main() {
     for (i = 0; i < config.SO_NODES_NUM; i++) {
         master_node_fl_msg.mtype = node_list[i];
         master_node_fl_msg.friends = get_random_friends(tmp_node_list[i]);
+        /*for (j = 0; j < config.SO_FRIENDS_NUM; j++) {
+            printf("%d\n", master_node_fl_msg.friends[j]);
+        }*/
         msgsnd(id_msg_master_node_nf, &master_node_fl_msg, sizeof(master_node_fl_message), IPC_NOWAIT);
     }
 
