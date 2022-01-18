@@ -5,26 +5,24 @@ configuration (*config);
 ledger (*master_ledger);
 pid_t (*user_list);
 int *block_id;
-int *readers_block_id;
 
 /* SHARED MEMORY */
 int id_shm_ledger;
 int id_shm_user_list;
 int id_shm_block_id;
-int id_shm_readers_block_id;
 
 /* MESSAGE QUEUE */
-int id_msg_node_user;
-int id_msg_user_node;
+int id_msg_tx_node_user;
+int id_msg_tx_user_node;
 
 /* SEMAPHORE*/
 int id_sem_init;
-int id_sem_writers_block_id;
+int id_sem_block_id;
 int id_sem_readers_block_id;
 
 /* MESSAGE DATA STRUCTURE */
-user_node_message user_node_msg;
-user_node_message node_user_msg;
+tx_message tx_user_node;
+tx_message tx_node_user;
 
 /* INTERNAL VARIABLES */
 transaction (*processing_transactions);
@@ -73,37 +71,32 @@ int main(int argc, char *argv[]) {
     /* SHARED MEMORY ATTACHING */
     id_shm_ledger = atoi(argv[7]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
-    EXIT_ON_ERROR
+    TEST_ERROR
 
     id_shm_user_list = atoi(argv[8]);
     user_list = shmat(id_shm_user_list, NULL, 0);
-    EXIT_ON_ERROR
+    TEST_ERROR
 
     id_shm_block_id = atoi(argv[9]);
     block_id = shmat(id_shm_block_id, NULL, 0);
-    EXIT_ON_ERROR
-
-    id_shm_readers_block_id = atoi(argv[10]);
-    readers_block_id = shmat(id_shm_readers_block_id, NULL, 0);
-    EXIT_ON_ERROR
+    TEST_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_node_user = atoi(argv[11]);
-    id_msg_user_node = atoi(argv[12]);
+    id_msg_tx_node_user = atoi(argv[10]);
+    id_msg_tx_user_node = atoi(argv[11]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[13]);
-    id_sem_writers_block_id = atoi(argv[14]);
-    id_sem_readers_block_id = atoi(argv[15]);
+    id_sem_init = atoi(argv[12]);
+    id_sem_block_id = atoi(argv[13]);
 
     wait_for_master(id_sem_init);
 
     while (1) {
-        if (msgrcv(id_msg_node_user, &user_node_msg, sizeof(user_node_msg), getpid(), IPC_NOWAIT) != -1) {
+        if (msgrcv(id_msg_tx_node_user, &tx_user_node, sizeof(tx_message), getpid(), IPC_NOWAIT) != -1) {
             for (i = 0; i < n_processing_transactions; i++) {
-                if (equal_transaction(user_node_msg.t, processing_transactions[i])) {
-                    so_budget_init += user_node_msg.t.amount;
-                    so_budget_init += user_node_msg.t.reward;
+                if (equal_transaction(tx_user_node.t, processing_transactions[i])) {
+                    so_budget_init += tx_user_node.t.amount;
+                    so_budget_init += tx_user_node.t.reward;
                     remove_from_processing_list(i);
                     printf("Here\n");
                 }
@@ -122,9 +115,9 @@ int calculate_balance() {
     int equal = 0;
     int tmp_block_id;
 
-    lock(id_sem_writers_block_id);
+    lock(id_sem_block_id);
     tmp_block_id = *block_id;
-    unlock(id_sem_writers_block_id);
+    unlock(id_sem_block_id);
 
     for (i = 0; i < tmp_block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 2; j++) {
@@ -186,9 +179,9 @@ void execute_transaction() {
     int balance = calculate_balance();
     if (balance >= 2) {
         transaction = new_transaction();
-        user_node_msg.mtype = 1;
-        user_node_msg.t = transaction;
-        if ((msgsnd(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 0)) < 0) {
+        tx_user_node.mtype = 1;
+        tx_user_node.t = transaction;
+        if ((msgsnd(id_msg_tx_user_node, &tx_user_node, sizeof(tx_message), 0)) < 0) {
             dying++;
             if (dying == so_retry) {
                 die();

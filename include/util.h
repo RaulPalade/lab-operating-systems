@@ -37,25 +37,20 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
-#define PROJ_ID_SHM_CONFIGURATION 'a'
-#define PROJ_ID_SHM_LEDGER 'b'
-#define PROJ_ID_SHM_NODE_LIST 'c'
-#define PROJ_ID_SHM_USER_LIST 'd'
-#define PROJ_ID_SHM_BLOCK_ID 'e'
-#define PROJ_ID_SHM_READERS_BLOCK_ID 'f'
+#define PROJ_ID_SHM_LEDGER 'a'
+#define PROJ_ID_SHM_USER_LIST 'b'
+#define PROJ_ID_SHM_BLOCK_ID 'c'
 
-#define PROJ_ID_MSG_NODE_USER 'g'
-#define PROJ_ID_MSG_USER_NODE 'h'
-#define PROJ_ID_MSG_MASTER_NODE_NF 'i'
-#define PROJ_ID_MSG_NODE_FRIENDS 'l'
-#define PROJ_ID_MSG_NODE_MASTER 'm'
-#define PROJ_ID_MSG_MASTER_NEW_FRIEND 'n'
+#define PROJ_ID_MSG_NODE_USER 'd'
+#define PROJ_ID_MSG_USER_NODE 'e'
+#define PROJ_ID_MSG_FRIEND_LIST 'f'
+#define PROJ_ID_MSG_NODE_FRIENDS 'g'
+#define PROJ_ID_MSG_NODE_MASTER 'h'
 
-#define PROJ_ID_SEM_INIT 'o'
-#define PROJ_ID_SEM_WRITERS 'p'
-#define PROJ_ID_SEM_READERS_BLOCK_ID 'q'
+#define PROJ_ID_SEM_INIT 'i'
+#define PROJ_ID_SEM_BLOCK_ID 'l'
 
-#define EXIT_ON_ERROR                                                                                           \
+#define TEST_ERROR                                                                                           \
     if (errno) {                                                                                                \
         fprintf(stderr, "File %s %d: pid %ld; errno: %d (%s)\n", __FILE__, __LINE__, (long)getpid(), errno, strerror(errno));     \
         raise(SIGINT);                                                                                          \
@@ -104,27 +99,17 @@ typedef struct {
 typedef struct {
     long mtype;
     transaction t;
-} user_node_message;
+} tx_message;
 
 typedef struct {
     long mtype;
     pid_t friends[50];
-} master_node_fl_message;
+} friend_list_message;
 
 typedef struct {
     long mtype;
     friend_transaction f_transaction;
-} node_friends_message;
-
-typedef struct {
-    long mytype;
-    transaction t;
-} node_master_message;
-
-typedef struct {
-    long mtype;
-    pid_t new_friend;
-} master_node_new_friend_message;
+} friend_message;
 
 int equal_transaction(transaction, transaction);
 

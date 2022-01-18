@@ -8,17 +8,16 @@ int *block_id;
 int id_shm_ledger;
 int id_shm_block_id;
 
-/* MESSAGE QUEUE */
-int id_msg_node_user;
-int id_msg_user_node;
-int id_msg_master_node_friend_list;
-int id_msg_node_friends;
-int id_msg_node_master;
-int id_msg_master_node_new_friend;
+/* MESSAGE QUEUE IDS */
+int id_msg_tx_node_master;      /* USED TO SEND TRANSACTION WITH MAX HOPS FROM NODE TO MASTER */
+int id_msg_tx_node_user;        /* USED TO SEND FAILURE TRANSACTION FROM NODE TO USER */
+int id_msg_tx_user_node;        /* USED TO SEND NEW TRANSACTION FROM USER TO NODE */
+int id_msg_tx_node_friends;     /* USED TO SEND TRANSACTION FROM NODE TO ANOTHER FRIEND NODE */
+int id_msg_friend_list;         /* USED TO SEND NODE FRIEND LIST FROM MASTER TO NODE */
 
 /* SEMAPHORE*/
 int id_sem_init;
-int id_sem_writers_block_id;
+int id_sem_block_id;
 
 int node_index;
 int so_tp_size;
@@ -32,15 +31,14 @@ int transaction_pool_size = 0;
 int balance = 0;
 int new_friends = 0;
 
-user_node_message user_node_msg;
-user_node_message node_user_msg;
-master_node_fl_message master_node_fl_msg;
-node_friends_message node_friends_msg;
-node_master_message node_master_msg;
-master_node_new_friend_message master_node_new_friend_msg;
+tx_message tx_node_master;
+tx_message tx_user_node;
+tx_message tx_node_user;
+friend_message tx_node_friend;
+friend_list_message friend_list_msg;
 struct timeval timer;
 
-pid_t node_friends[10];
+pid_t friends[10];
 
 /**
  * NODE PROCESS
@@ -51,18 +49,16 @@ pid_t node_friends[10];
  * 5) Execute transaction                               
  * 6) Remove transactions from transaction pool         
  */
-
 int main(int argc, char *argv[]) {
     int i;
     int j;
     int time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
     int user_receive_success;
-    int friend_receive_success;
+    int added_to_tp;
     int added_to_ledger;
     transaction *transactions;
     block block;
     struct sigaction sa;
-    struct msqid_ds q_ds;
 
     bzero(&sa, sizeof(sa));
     sa.sa_handler = handler;
@@ -72,105 +68,113 @@ int main(int argc, char *argv[]) {
 
     node_index = atoi(argv[1]);
 
+    /* CONFIG PARAMS */
     so_tp_size = atoi(argv[2]);
     so_min_trans_proc_nsec = atoi(argv[3]);
     so_max_trans_proc_nsec = atoi(argv[4]);
+    so_friends_num = atoi(argv[5]);
+    so_hops = atoi(argv[6]);
 
     /* SHARED MEMORY ATTACHING */
-    id_shm_ledger = atoi(argv[5]);
+    id_shm_ledger = atoi(argv[7]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
-    EXIT_ON_ERROR
+    TEST_ERROR
 
-    id_shm_block_id = atoi(argv[6]);
+    id_shm_block_id = atoi(argv[8]);
     block_id = shmat(id_shm_block_id, NULL, 0);
-    EXIT_ON_ERROR
+    TEST_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_node_user = atoi(argv[7]);
-    id_msg_user_node = atoi(argv[8]);
+    id_msg_tx_node_master = atoi(argv[9]);
+    id_msg_tx_node_user = atoi(argv[10]);
+    id_msg_tx_user_node = atoi(argv[11]);
+    id_msg_tx_node_friends = atoi(argv[12]);
+    id_msg_friend_list = atoi(argv[13]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[9]);
-    id_sem_writers_block_id = atoi(argv[10]);
-    so_friends_num = atoi(argv[11]);
-
-    /* EXTRA */
-    id_msg_master_node_friend_list = atoi(argv[12]);
-    id_msg_node_friends = atoi(argv[13]);
-    so_hops = atoi(argv[14]);
-    id_msg_node_master = atoi(argv[15]);
-    id_msg_master_node_new_friend = atoi(argv[16]);
+    id_sem_init = atoi(argv[14]);
+    id_sem_block_id = atoi(argv[15]);
 
     pool.transactions = malloc(so_tp_size * sizeof(transaction));
 
-    msgctl(id_msg_master_node_friend_list, IPC_STAT, &q_ds);
-    printf("Node %d messagges in queue = %lu\n", getpid(), q_ds.msg_qnum);
-
-    if (msgrcv(id_msg_master_node_friend_list, &master_node_fl_msg, sizeof(master_node_fl_message), getpid(), 0) !=
+    /* ADDING FRIENDS DURING NODE INITIALIZATION */
+    if (msgrcv(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), getpid(), 0) !=
         -1) {
-/*
-        node_friends = master_node_fl_msg.friends;
-*/
-        printf("Here");
-        for (i = 0; i < so_friends_num; i++) {
-            printf("NODE %d node_friends[%d]=%d\n", getpid(), i, master_node_fl_msg.friends[i]);
+        memcpy(friends, friend_list_msg.friends, sizeof(pid_t) * so_friends_num);
+        /*for (i = 0; i < so_friends_num; i++) {
+            printf("%d\n", friends[i]);
         }
+        printf("\n");*/
     }
 
-    if (msgrcv(id_msg_node_master, &node_master_msg, sizeof(node_master_message), getpid(), IPC_NOWAIT) != -1) {
-        add_to_transaction_pool(node_master_msg.t);
+    /* ADDING FAILED TRANSACTION TO POOL AFTER CREATION FROM MASTER */
+    if (msgrcv(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), getpid(), IPC_NOWAIT) != -1) {
+        add_to_transaction_pool(tx_node_master.t);
+        printf("%d i'm adding the tx to my pool\n", getpid());
+        printf("List of friends\n");
+        for (i = 0; i < so_friends_num; i++) {
+            printf("%d\n", friends[i]);
+        }
     }
 
     wait_for_master(id_sem_init);
 
     while (1) {
-        if (msgrcv(id_msg_node_master, &node_master_msg, sizeof(node_master_message), getpid(), IPC_NOWAIT) != -1) {
-            add_to_transaction_pool(node_master_msg.t);
-        }
-
-        if (msgrcv(id_msg_master_node_new_friend, &master_node_new_friend_msg, sizeof(master_node_new_friend_message),
-                   getpid(),
+        /* WAITING NEW FRIEND FROM MASTER */
+        if (msgrcv(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), getpid(),
                    IPC_NOWAIT) != -1) {
-            add_new_friend(master_node_new_friend_msg.new_friend);
+            printf("%d received new friend from master with PID = %d\n", getpid(), friend_list_msg.friends[0]);
+            add_new_friend(friend_list_msg.friends[0]);
         }
 
         /* FRIEND TRANSACTION */
-        if (msgrcv(id_msg_node_friends, &node_friends_msg, sizeof(node_friends_message), getpid(), IPC_NOWAIT) != -1) {
-            friend_receive_success = add_to_transaction_pool(node_friends_msg.f_transaction.t);
-            print_transaction(node_friends_msg.f_transaction.t);
-            if (!friend_receive_success) {
-                node_friends_msg.f_transaction.hops++;
-                if (node_friends_msg.f_transaction.hops > so_hops) {
-                    node_friends_msg.mtype = getppid();
-                    msgsnd(id_msg_node_master, &node_master_msg, sizeof(node_master_message), 0);
+        if (msgrcv(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), getpid(), IPC_NOWAIT) != -1) {
+            /*added_to_tp = add_to_transaction_pool(tx_node_friend.f_transaction.t);*/
+            printf("Received from friend\n");
+            print_transaction(tx_node_friend.f_transaction.t);
+            if (!added_to_tp) {
+                tx_node_friend.f_transaction.hops++;
+                if (tx_node_friend.f_transaction.hops > 0) {
+                    /*printf("Sending transaction to master process\n");*/
+                    tx_node_master.mtype = getppid();
+                    tx_node_master.t = tx_node_friend.f_transaction.t;
+                    msgsnd(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), 0);
                 } else {
-                    node_friends_msg.mtype = get_random_friend();
-                    msgsnd(id_msg_node_friends, &node_friends_msg, sizeof(node_friends_message), 0);
+                    printf("Sending transaction to friend process\n");
+                    tx_node_friend.mtype = get_random_friend();
+                    msgsnd(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), 0);
                 }
             }
+        } else {
+            /*printf("No message from friend\n");*/
         }
 
         /* USER TRANSACTION */
-        if (msgrcv(id_msg_user_node, &user_node_msg, sizeof(user_node_message), 1, IPC_NOWAIT) != -1) {
-            user_receive_success = add_to_transaction_pool(user_node_msg.t);
+        if (msgrcv(id_msg_tx_user_node, &tx_user_node, sizeof(tx_message), 1, IPC_NOWAIT) != -1) {
+            user_receive_success = add_to_transaction_pool(tx_user_node.t);
+            /*print_transaction(tx_user_node.t);*/
             if (!user_receive_success) {
-                user_node_msg.mtype = user_node_msg.t.sender;
-                msgsnd(id_msg_node_user, &user_node_msg, sizeof(user_node_message), 0);
+                tx_node_user.mtype = tx_user_node.t.sender;
+                msgsnd(id_msg_tx_node_user, &tx_node_user, sizeof(tx_message), 0);
             } else {
                 if (transaction_pool_size >= 1) {
-                    /*printf("Send new friend transaction\n");*/
                     time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
-                    node_friends_msg.mtype = get_random_friend();
-                    /*printf("node_friends_msg.mtype=%ld\n", node_friends_msg.mtype);*/
-                    node_friends_msg.f_transaction.hops = 0;
-                    node_friends_msg.f_transaction.t = pool.transactions[0];
+                    tx_node_friend.mtype = get_random_friend();
+                    tx_node_friend.f_transaction.hops = 0;
+                    tx_node_friend.f_transaction.t = pool.transactions[0];
+                    remove_from_transaction_pool(tx_node_friend.f_transaction.t);
+                    if (msgsnd(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), 0) != -1) {
+                        printf("Sended\n");
+                    } else {
+                        printf("Error\n");
+                    }
                 }
                 /*if (time_to_send == 0 && transaction_pool_size >= 1) {
                     printf("Send new friend transaction\n");
                     time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
-                    node_friends_msg.mtype = get_random_friend();
-                    node_friends_msg.f_transaction.hops = 0;
-                    node_friends_msg.f_transaction.t = pool.transactions[0];
+                    tx_node_friend.mtype = get_random_friend();
+                    tx_node_friend.f_transaction.hops = 0;
+                    tx_node_friend.f_transaction.t = pool.transactions[0];
                 }
                 if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
                     transactions = extract_transactions_block_from_pool();
@@ -196,15 +200,13 @@ pid_t get_random_friend() {
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_nsec);
     random = (rand() % (upper - lower)) + lower;
-    /*printf("Random = %d\n", random);
-    printf("node_friends[random] = %d\n", node_friends[random]);*/
-    return node_friends[random];
+    return friends[random];
 }
 
 void add_new_friend(pid_t node) {
     /*new_friends++;
-    node_friends = realloc(node_friends, (so_friends_num + new_friends) * sizeof(pid_t));
-    node_friends[so_friends_num + new_friends] = node;*/
+    friends = realloc(friends, (so_friends_num + new_friends) * sizeof(pid_t));
+    friends[so_friends_num + new_friends] = node;*/
 }
 
 int add_to_transaction_pool(transaction t) {
@@ -287,7 +289,7 @@ transaction new_reward_transaction(int total_amount) {
 
 int add_to_ledger(block block) {
     int added = 0;
-    lock(id_sem_writers_block_id);
+    lock(id_sem_block_id);
     if (*block_id < SO_REGISTRY_SIZE) {
         block.id = *block_id;
         master_ledger->blocks[*block_id] = block;
@@ -297,7 +299,7 @@ int add_to_ledger(block block) {
     } else {
         kill(getppid(), SIGUSR2);
     }
-    unlock(id_sem_writers_block_id);
+    unlock(id_sem_block_id);
 
     return added;
 }
@@ -315,9 +317,9 @@ void clean_transaction_pool() {
     int i;
     if (transaction_pool_size > 0) {
         for (i = 0; i < transaction_pool_size; i++) {
-            user_node_msg.mtype = pool.transactions[i].sender;
-            user_node_msg.t = pool.transactions[i];
-            msgsnd(id_msg_node_user, &user_node_msg, sizeof(user_node_message), 0);
+            tx_user_node.mtype = pool.transactions[i].sender;
+            tx_user_node.t = pool.transactions[i];
+            msgsnd(id_msg_tx_node_user, &tx_user_node, sizeof(tx_message), 0);
         }
     }
     transaction_pool_size = 0;
