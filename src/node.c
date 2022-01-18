@@ -29,7 +29,6 @@ int so_hops;
 transaction_pool pool;
 int transaction_pool_size = 0;
 int balance = 0;
-int new_friends = 0;
 
 tx_message tx_node_master;
 tx_message tx_user_node;
@@ -38,7 +37,7 @@ friend_message tx_node_friend;
 friend_list_message friend_list_msg;
 struct timeval timer;
 
-pid_t friends[10];
+pid_t *friends;
 
 /**
  * NODE PROCESS
@@ -50,11 +49,12 @@ pid_t friends[10];
  * 6) Remove transactions from transaction pool         
  */
 int main(int argc, char *argv[]) {
+    pid_t new_friend = 99999;
     int i;
     int j;
     int time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
     int user_receive_success;
-    int added_to_tp;
+    int added_to_tp = 0;
     int added_to_ledger;
     transaction *transactions;
     block block;
@@ -96,6 +96,7 @@ int main(int argc, char *argv[]) {
     id_sem_block_id = atoi(argv[15]);
 
     pool.transactions = malloc(so_tp_size * sizeof(transaction));
+    friends = malloc(so_friends_num * sizeof(pid_t));
 
     /* ADDING FRIENDS DURING NODE INITIALIZATION */
     if (msgrcv(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), getpid(), 0) !=
@@ -121,6 +122,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         /* WAITING NEW FRIEND FROM MASTER */
+        /* CORRECT */
         if (msgrcv(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), getpid(),
                    IPC_NOWAIT) != -1) {
             printf("%d received new friend from master with PID = %d\n", getpid(), friend_list_msg.friends[0]);
@@ -130,17 +132,16 @@ int main(int argc, char *argv[]) {
         /* FRIEND TRANSACTION */
         if (msgrcv(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), getpid(), IPC_NOWAIT) != -1) {
             /*added_to_tp = add_to_transaction_pool(tx_node_friend.f_transaction.t);*/
-            printf("Received from friend\n");
-            print_transaction(tx_node_friend.f_transaction.t);
+            /* CORRECT */
             if (!added_to_tp) {
                 tx_node_friend.f_transaction.hops++;
                 if (tx_node_friend.f_transaction.hops > 0) {
-                    /*printf("Sending transaction to master process\n");*/
+                    /* CORRECT */
                     tx_node_master.mtype = getppid();
                     tx_node_master.t = tx_node_friend.f_transaction.t;
                     msgsnd(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), 0);
                 } else {
-                    printf("Sending transaction to friend process\n");
+                    /* CORRECT */
                     tx_node_friend.mtype = get_random_friend();
                     msgsnd(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), 0);
                 }
@@ -152,7 +153,7 @@ int main(int argc, char *argv[]) {
         /* USER TRANSACTION */
         if (msgrcv(id_msg_tx_user_node, &tx_user_node, sizeof(tx_message), 1, IPC_NOWAIT) != -1) {
             user_receive_success = add_to_transaction_pool(tx_user_node.t);
-            /*print_transaction(tx_user_node.t);*/
+            /* CORRECT */
             if (!user_receive_success) {
                 tx_node_user.mtype = tx_user_node.t.sender;
                 msgsnd(id_msg_tx_node_user, &tx_node_user, sizeof(tx_message), 0);
@@ -163,11 +164,7 @@ int main(int argc, char *argv[]) {
                     tx_node_friend.f_transaction.hops = 0;
                     tx_node_friend.f_transaction.t = pool.transactions[0];
                     remove_from_transaction_pool(tx_node_friend.f_transaction.t);
-                    if (msgsnd(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), 0) != -1) {
-                        printf("Sended\n");
-                    } else {
-                        printf("Error\n");
-                    }
+                    msgsnd(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), 0);
                 }
                 /*if (time_to_send == 0 && transaction_pool_size >= 1) {
                     printf("Send new friend transaction\n");
@@ -204,9 +201,9 @@ pid_t get_random_friend() {
 }
 
 void add_new_friend(pid_t node) {
-    /*new_friends++;
-    friends = realloc(friends, (so_friends_num + new_friends) * sizeof(pid_t));
-    friends[so_friends_num + new_friends] = node;*/
+    so_friends_num++;
+    friends = realloc(friends, (so_friends_num) * sizeof(pid_t));
+    friends[so_friends_num - 1] = node;
 }
 
 int add_to_transaction_pool(transaction t) {

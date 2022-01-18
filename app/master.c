@@ -307,6 +307,7 @@ int main() {
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
         if (msgrcv(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), getpid(), 0) != -1) {
+            printf("Message received from node\n");
             switch (node_pid = fork()) {
                 case -1:
                     TEST_ERROR
