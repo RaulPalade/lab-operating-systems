@@ -1,16 +1,7 @@
 1) Aggiungere gestione segnale core dump per la rimozione degli oggetti IPC se sono presenti
 
-==========TOP NODES==========
-     PID      |     BALANCE
-=============================
-   20442      |         30
-   20443      |         14
-   20444      |         28
-   20445      |         24
-   20446      |         17
-   20447      |         16
-   20448      |         31
-   20449      |         30
-   20450      |         16
-   20451      |         16
-
+id_msg_tx_node_user=11
+id_msg_tx_user_node=12
+id_msg_friend_list=13
+id_msg_tx_node_friends=14
+id_msg_tx_node_master=15

@@ -43,4 +43,6 @@ void print_live_info(child_data *, child_data *, child_data *);
 
 int compare(const void *, const void *);
 
+void check_semaphore();
+
 #endif

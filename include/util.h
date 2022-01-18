@@ -18,14 +18,14 @@
 #include <sys/time.h>
 #include <assert.h>
 
-#define SO_BLOCK_SIZE 100
-#define SO_REGISTRY_SIZE 1000
+/*#define SO_BLOCK_SIZE 100
+#define SO_REGISTRY_SIZE 1000*/
 
 /*#define SO_BLOCK_SIZE 10
 #define SO_REGISTRY_SIZE 10000*/
 
-/*#define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 1000*/
+#define SO_BLOCK_SIZE 10
+#define SO_REGISTRY_SIZE 1000
 
 #define SENDER_TRANSACTION_REWARD -1
 

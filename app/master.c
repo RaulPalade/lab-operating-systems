@@ -87,16 +87,9 @@ int main() {
     char so_nodes_num[3 * sizeof(int) + 1];
     char so_users_num[3 * sizeof(int) + 1];
 
-
     char id_shm_ledger_str[3 * sizeof(int) + 1];
     char id_shm_block_id_str[3 * sizeof(int) + 1];
     char id_shm_user_list_str[3 * sizeof(int) + 1];
-
-    int id_msg_tx_node_master;
-    int id_msg_tx_node_user;
-    int id_msg_tx_user_node;
-    int id_msg_tx_node_friends;
-    int id_msg_friend_list;
 
     char id_msg_tx_node_master_str[3 * sizeof(int) + 1];
     char id_msg_tx_node_user_str[3 * sizeof(int) + 1];
@@ -306,8 +299,7 @@ int main() {
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
     while (executing && !ledger_full && active_users > 0) {
-        if (msgrcv(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), getpid(), 0) != -1) {
-            printf("Message received from node\n");
+        if (msgrcv(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), getpid(), IPC_NOWAIT) != -1) {
             switch (node_pid = fork()) {
                 case -1:
                     TEST_ERROR
@@ -318,7 +310,6 @@ int main() {
                     execv("node", args_node);
 
                 default:
-                    printf("New node created: %d\n", node_pid);
                     active_nodes++;
                     new_nodes++;
                     node_list = realloc(node_list, sizeof(pid_t) * (config.SO_NODES_NUM + new_nodes));
@@ -339,13 +330,12 @@ int main() {
             node_i++;
 
             /* SEND CREATED PROCESS TO ALL NODES AS A FRIEND */
-            /* Aggiungere il controllo per scartare amico se corrisponde al nodo stesso (nel nodo) */
-            for (i = 0; i < config.SO_NODES_NUM; i++) {
+            /*Aggiungere il controllo per scartare amico se corrisponde al nodo stesso (nel nodo) */
+            for (i = 0; i < config.SO_NODES_NUM + (new_nodes - 1); i++) {
                 friend_list_msg.mtype = node_list[i];
                 friend_list_msg.friends[0] = node_pid;
                 msgsnd(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), 0);
             }
-            printf("Now\n");
         }
 
         lock(id_sem_block_id);
@@ -363,7 +353,7 @@ int main() {
             add_min(worst_users, user_list[i], user_balance);
         }
 
-        /*print_live_info(top_nodes, top_users, worst_users);*/
+        print_live_info(top_nodes, top_users, worst_users);
 
         nanosleep(&request, &remaining);
     }
@@ -372,7 +362,7 @@ int main() {
 
     print_ledger();
 
-    /*printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
+    printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
     printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
     printf("%s\n", ANSI_COLOR_GREEN "===============================" ANSI_COLOR_RESET);
     for (i = 0; i < config.SO_NODES_NUM; i++) {
@@ -386,7 +376,7 @@ int main() {
     for (i = 0; i < config.SO_USERS_NUM; i++) {
         user_balance = calculate_user_balance(user_list[i], *block_id);
         printf("%8d    %5s    %8d\n", user_list[i], "|", user_balance);
-    }*/
+    }
 
     print_final_report();
 
@@ -436,7 +426,6 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            ANSI_COLOR_GREEN "=========WORST USERS=========" ANSI_COLOR_RESET,
            ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET,
            ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET);
-    fflush(stdout);
 
     printf("%8s      %5s    %8s          %8s      %5s    %8s         %8s     %5s    %8s               %10s               %10s\n",
            "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
@@ -444,9 +433,7 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
            "ACTIVE NODES",
            "ACTIVE USERS");
-    fflush(stdout);
     printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
-    fflush(stdout);
     for (i = 0; i < N_USER_TO_DISPLAY; i++) {
         if (i == 0) {
             printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10d                   %10d\n",
@@ -456,7 +443,6 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
                    active_nodes,
                    active_users
             );
-            fflush(stdout);
         } else {
             printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10s                   %10s\n",
                    top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
@@ -465,7 +451,6 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
                    "",
                    ""
             );
-            fflush(stdout);
         }
     }
 }
@@ -603,7 +588,7 @@ void read_configuration(configuration *config) {
     FILE *file;
     char s[23];
     char comment;
-    char filename[] = "../configurations/configuration1.conf";
+    char filename[] = "../configurations/configuration3.conf";
     int value;
     int i;
 
@@ -668,44 +653,30 @@ void read_configuration(configuration *config) {
 }
 
 void handler(int signal) {
-    union semun sem_ds;
-    int sem_value;
-    sem_ds.val = 0;
+
     switch (signal) {
         case SIGALRM:
             final_alive_users = active_users;
-            sem_value = semctl(id_sem_block_id, 0, GETVAL, sem_ds.val);
-            if (sem_value == 0) {
-                unlock(id_sem_block_id);
-            }
             executing = 0;
+            check_semaphore();
             break;
 
         case SIGINT:
-            /*sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
-            if (sem_value == 0) {
-                unlock(id_sem_writers_block_id);
-            }
-            executing = 0;*/
+            executing = 0;
+            check_semaphore();
             break;
 
         case SIGTERM:
             executing = 0;
+            check_semaphore();
             break;
 
         case SIGQUIT:
-            /*sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
-            if (sem_value == 0) {
-                unlock(id_sem_writers_block_id);
-            }
-            executing = 0;*/
+            executing = 0;
+            check_semaphore();
             break;
 
         case SIGUSR1:
-            /*sem_value = semctl(id_sem_writers_block_id, 0, GETVAL, sem_ds.val);
-            if (sem_value == 0) {
-                unlock(id_sem_writers_block_id);
-            }*/
             active_users--;
             break;
 
@@ -737,4 +708,15 @@ void cleanIPC() {
 
     semctl(id_sem_init, 0, IPC_RMID);
     semctl(id_sem_block_id, 0, IPC_RMID);
+}
+
+void check_semaphore() {
+    union semun sem_ds;
+    int sem_value;
+    sem_ds.val = 0;
+
+    sem_value = semctl(id_sem_block_id, 0, GETVAL, sem_ds.val);
+    if (sem_value == 0) {
+        unlock(id_sem_block_id);
+    }
 }
