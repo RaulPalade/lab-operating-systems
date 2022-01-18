@@ -65,6 +65,8 @@ int main() {
     int user_balance;
     int tmp_block_id;
 
+    child_data *balance_nodes;
+    child_data *balance_users;
     child_data top_nodes[N_USER_TO_DISPLAY];
     child_data top_users[N_USER_TO_DISPLAY];
     child_data worst_users[N_USER_TO_DISPLAY];
@@ -129,6 +131,8 @@ int main() {
 
     node_list = malloc(config.SO_NODES_NUM * sizeof(pid_t));
     tmp_node_list = malloc(config.SO_NODES_NUM * sizeof(pid_t));
+    balance_nodes = malloc(config.SO_NODES_NUM * sizeof(child_data));
+    balance_users = malloc(config.SO_USERS_NUM * sizeof(child_data));
 
     /* SHARED MEMORY CREATION */
     key = ftok("../makefile", PROJ_ID_SHM_LEDGER);
@@ -314,12 +318,12 @@ int main() {
                     new_nodes++;
                     node_list = realloc(node_list, sizeof(pid_t) * (config.SO_NODES_NUM + new_nodes));
                     tmp_node_list = realloc(tmp_node_list, sizeof(pid_t) * (config.SO_NODES_NUM + new_nodes));
-                    node_list[node_i - 1] = node_pid;
-                    tmp_node_list[node_i - 1] = node_pid;
+                    node_list[node_i] = node_pid;
+                    tmp_node_list[node_i] = node_pid;
             }
 
             /* SEND FRIENDS TO NEW PROCESS CREATED */
-            friend_list_msg.mtype = node_list[node_i - 1];
+            friend_list_msg.mtype = node_list[node_i];
             memcpy(friend_list_msg.friends, get_random_friends(friend_list_msg.mtype),
                    sizeof(pid_t) * config.SO_FRIENDS_NUM);
             msgsnd(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), 0);
@@ -342,16 +346,24 @@ int main() {
         tmp_block_id = *block_id;
         unlock(id_sem_block_id);
         tmp_block_id--;
-        for (i = 0; i < config.SO_NODES_NUM; i++) {
+        for (i = 0; i < config.SO_NODES_NUM + new_nodes; i++) {
             node_balance = calculate_node_balance(node_list[i], tmp_block_id);
-            add_max(top_nodes, node_list[i], node_balance);
+            balance_nodes[i].pid = node_list[i];
+            balance_nodes[i].balance = node_balance;
         }
 
         for (i = 0; i < config.SO_USERS_NUM; i++) {
             user_balance = calculate_user_balance(user_list[i], tmp_block_id);
-            add_max(top_users, user_list[i], user_balance);
-            add_min(worst_users, user_list[i], user_balance);
+            balance_users[i].pid = user_list[i];
+            balance_users[i].balance = user_balance;
         }
+
+        qsort(balance_nodes, config.SO_NODES_NUM + new_nodes, sizeof(child_data), compare);
+        qsort(balance_users, config.SO_USERS_NUM, sizeof(child_data), compare);
+        memcpy(top_nodes, balance_nodes, sizeof(child_data) * N_USER_TO_DISPLAY);
+        memcpy(top_users, balance_users, sizeof(child_data) * N_USER_TO_DISPLAY);
+        memcpy(worst_users, balance_users + config.SO_USERS_NUM - N_USER_TO_DISPLAY,
+               sizeof(child_data) * N_USER_TO_DISPLAY);
 
         print_live_info(top_nodes, top_users, worst_users);
 
@@ -360,12 +372,12 @@ int main() {
 
     kill(0, SIGTERM);
 
-    print_ledger();
+    /*print_ledger(); */
 
     printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
     printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
     printf("%s\n", ANSI_COLOR_GREEN "===============================" ANSI_COLOR_RESET);
-    for (i = 0; i < config.SO_NODES_NUM; i++) {
+    for (i = 0; i < config.SO_NODES_NUM + new_nodes; i++) {
         node_balance = calculate_node_balance(node_list[i], *block_id);
         printf("%8d    %5s    %8d\n", node_list[i], "|", node_balance);
     }
@@ -385,6 +397,11 @@ int main() {
     return 0;
 }
 
+void reverse(child_data child) {
+    int i = 0;
+
+}
+
 void shuffle(int *array) {
     size_t i;
     size_t j;
@@ -394,8 +411,8 @@ void shuffle(int *array) {
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_nsec);
     if (config.SO_NODES_NUM > 1) {
-        for (i = 0; i < config.SO_NODES_NUM - 1; i++) {
-            j = i + rand() / (RAND_MAX / (config.SO_NODES_NUM - i) + 1);
+        for (i = 0; i < (config.SO_NODES_NUM - 1) + new_nodes; i++) {
+            j = i + rand() / (RAND_MAX / ((config.SO_NODES_NUM - i) + new_nodes) + 1);
             tmp = array[j];
             array[j] = array[i];
             array[i] = tmp;
@@ -409,7 +426,7 @@ pid_t *get_random_friends(pid_t node) {
     pid_t *friend_list = malloc(config.SO_FRIENDS_NUM * sizeof(pid_t));
     shuffle(tmp_node_list);
 
-    for (i = 0; i < config.SO_NODES_NUM && added < config.SO_FRIENDS_NUM; i++) {
+    for (i = 0; i < config.SO_NODES_NUM + new_nodes && added < config.SO_FRIENDS_NUM; i++) {
         if (tmp_node_list[i] != node) {
             friend_list[added++] = tmp_node_list[i];
         }
@@ -420,6 +437,7 @@ pid_t *get_random_friends(pid_t node) {
 
 void print_live_info(child_data *top_nodes, child_data *top_users, child_data *worst_users) {
     int i;
+    int j;
     printf("\n%10s        %10s        %10s        %10s         %10s\n",
            ANSI_COLOR_GREEN "==========TOP NODES==========" ANSI_COLOR_RESET,
            ANSI_COLOR_GREEN "==========TOP USERS==========" ANSI_COLOR_RESET,
@@ -434,12 +452,12 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            "ACTIVE NODES",
            "ACTIVE USERS");
     printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
-    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
+    for (i = 0, j = N_USER_TO_DISPLAY - 1; i < N_USER_TO_DISPLAY && j >= 0; i++, j--) {
         if (i == 0) {
             printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10d                   %10d\n",
                    top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
                    top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
-                   worst_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[i].balance,
+                   worst_users[j].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[j].balance,
                    active_nodes,
                    active_users
             );
@@ -447,7 +465,7 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
             printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10s                   %10s\n",
                    top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
                    top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
-                   worst_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[i].balance,
+                   worst_users[j].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[j].balance,
                    "",
                    ""
             );
@@ -490,20 +508,27 @@ void add_max(child_data *array, pid_t pid, int balance) {
     int i;
     int added = 0;
     int present = 0;
+
     for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
         if (pid == array[i].pid) {
             if (balance > array[i].balance) {
                 array[i].balance = balance;
                 qsort(array, N_USER_TO_DISPLAY, sizeof(child_data), compare);
                 added = 1;
+            } else {
             }
             present = 1;
         }
-        if (present == 0 && balance > array[i].balance) {
-            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
-            array[i].pid = pid;
-            array[i].balance = balance;
-            added = 1;
+    }
+
+    if (present == 0) {
+        for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
+            if (balance > array[i].balance) {
+                memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
+                array[i].pid = pid;
+                array[i].balance = balance;
+                added = 1;
+            }
         }
     }
 }
@@ -512,20 +537,27 @@ void add_min(child_data *array, pid_t pid, int balance) {
     int i;
     int added = 0;
     int present = 0;
+
     for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
         if (pid == array[i].pid) {
             if (balance < array[i].balance) {
                 array[i].balance = balance;
                 qsort(array, N_USER_TO_DISPLAY, sizeof(child_data), compare);
                 added = 1;
+            } else {
             }
             present = 1;
         }
-        if (present == 0 && balance < array[i].balance) {
-            memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
-            array[i].pid = pid;
-            array[i].balance = balance;
-            added = 1;
+    }
+
+    if (present == 0) {
+        for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
+            if (balance < array[i].balance) {
+                memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
+                array[i].pid = pid;
+                array[i].balance = balance;
+                added = 1;
+            }
         }
     }
 }
