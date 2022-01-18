@@ -121,6 +121,7 @@ int main(int argc, char *argv[]) {
         /* FRIEND TRANSACTION */
         if (msgrcv(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), getpid(), IPC_NOWAIT) != -1) {
             added_to_tp = add_to_transaction_pool(tx_node_friend.f_transaction.t);
+            printf("Received t from friend\n");
             if (!added_to_tp) {
                 tx_node_friend.f_transaction.hops++;
                 if (tx_node_friend.f_transaction.hops > so_hops) {
@@ -150,6 +151,7 @@ int main(int argc, char *argv[]) {
                     msgsnd(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), 0);
                 }
                 if (transaction_pool_size >= SO_BLOCK_SIZE - 1) {
+                    time_to_send--;
                     transactions = extract_transactions_block_from_pool();
                     block = new_block(transactions);
                     added_to_ledger = add_to_ledger(block);
@@ -161,7 +163,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-        time_to_send--;
     }
 }
 
