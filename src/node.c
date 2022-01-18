@@ -49,12 +49,10 @@ pid_t *friends;
  * 6) Remove transactions from transaction pool         
  */
 int main(int argc, char *argv[]) {
-    pid_t new_friend = 99999;
     int i;
-    int j;
     int time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
     int user_receive_success;
-    int added_to_tp = 0;
+    int added_to_tp;
     int added_to_ledger;
     transaction *transactions;
     block block;
@@ -121,7 +119,6 @@ int main(int argc, char *argv[]) {
         /* FRIEND TRANSACTION */
         if (msgrcv(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), getpid(), IPC_NOWAIT) != -1) {
             added_to_tp = add_to_transaction_pool(tx_node_friend.f_transaction.t);
-            printf("Received t from friend\n");
             if (!added_to_tp) {
                 tx_node_friend.f_transaction.hops++;
                 if (tx_node_friend.f_transaction.hops > so_hops) {
@@ -164,23 +161,6 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-}
-
-pid_t get_random_friend() {
-    int random;
-    int lower = 0;
-    int upper = so_friends_num;
-    struct timespec tp;
-    clock_gettime(CLOCK_REALTIME, &tp);
-    srand(tp.tv_nsec);
-    random = (rand() % (upper - lower)) + lower;
-    return friends[random];
-}
-
-void add_new_friend(pid_t node) {
-    so_friends_num++;
-    friends = realloc(friends, (so_friends_num) * sizeof(pid_t));
-    friends[so_friends_num - 1] = node;
 }
 
 int add_to_transaction_pool(transaction t) {
@@ -278,26 +258,42 @@ int add_to_ledger(block block) {
     return added;
 }
 
+pid_t get_random_friend() {
+    int random;
+    int lower = 0;
+    int upper = so_friends_num;
+    struct timespec tp;
+    clock_gettime(CLOCK_REALTIME, &tp);
+    srand(tp.tv_nsec);
+    random = (rand() % (upper - lower)) + lower;
+    return friends[random];
+}
+
+void add_new_friend(pid_t node) {
+    so_friends_num++;
+    friends = realloc(friends, (so_friends_num) * sizeof(pid_t));
+    friends[so_friends_num - 1] = node;
+}
+
+void clean_transaction_pool() {
+    int i;
+    if (transaction_pool_size > 0) {
+        for (i = 0; i < transaction_pool_size; i++) {
+            tx_user_node.mtype = pool.transactions[i].sender;
+            tx_user_node.t = pool.transactions[i];
+            msgsnd(id_msg_tx_node_user, &tx_user_node, sizeof(tx_message), 0);
+        }
+    }
+    transaction_pool_size = 0;
+    free(pool.transactions);
+}
+
 void print_transaction_pool() {
     int i;
     print_table_header();
     for (i = 0; i < transaction_pool_size; i++) {
         print_transaction(pool.transactions[i]);
     }
-}
-
-void clean_transaction_pool() {
-    /* Maybe need to release semaphores */
-    int i;
-    if (transaction_pool_size > 0) {
-        for (i = 0; i < transaction_pool_size; i++) {
-            tx_user_node.mtype = pool.transactions[i].sender;
-            tx_user_node.t = pool.transactions[i];
-            /*msgsnd(id_msg_tx_node_user, &tx_user_node, sizeof(tx_message), 0);*/
-        }
-    }
-    transaction_pool_size = 0;
-    free(pool.transactions);
 }
 
 void handler(int signal) {

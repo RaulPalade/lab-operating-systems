@@ -13,10 +13,8 @@ void remove_from_processing_list(int);
 
 pid_t get_random_user();
 
-void print_processing_list();
-
-void update_info();
-
 void die();
+
+void print_processing_list();
 
 void handler(int);

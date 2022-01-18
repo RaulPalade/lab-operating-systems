@@ -1,7 +1,2 @@
-1) Aggiungere gestione segnale core dump per la rimozione degli oggetti IPC se sono presenti
-
-id_msg_tx_node_user=11
-id_msg_tx_user_node=12
-id_msg_friend_list=13
-id_msg_tx_node_friends=14
-id_msg_tx_node_master=15
+1) Aggiungere arrotondamento su reward
+2) Iniviare transazioni rimaste nella tp al master alla fine della simulazione

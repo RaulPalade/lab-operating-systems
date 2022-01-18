@@ -58,7 +58,6 @@ pid_t *tmp_node_list;
  */
 int main() {
     int i;
-    int j;
     int node_i;
     int user_i;
     int node_balance;
@@ -67,9 +66,9 @@ int main() {
 
     child_data *balance_nodes;
     child_data *balance_users;
-    child_data top_nodes[N_USER_TO_DISPLAY];
-    child_data top_users[N_USER_TO_DISPLAY];
-    child_data worst_users[N_USER_TO_DISPLAY];
+    child_data top_nodes[N_CHILD_TO_DISPLAY];
+    child_data top_users[N_CHILD_TO_DISPLAY];
+    child_data worst_users[N_CHILD_TO_DISPLAY];
 
     char *args_node[17] = {NODE};
     char *args_user[15] = {USER};
@@ -334,7 +333,6 @@ int main() {
             node_i++;
 
             /* SEND CREATED PROCESS TO ALL NODES AS A FRIEND */
-            /*Aggiungere il controllo per scartare amico se corrisponde al nodo stesso (nel nodo) */
             for (i = 0; i < config.SO_NODES_NUM + (new_nodes - 1); i++) {
                 friend_list_msg.mtype = node_list[i];
                 friend_list_msg.friends[0] = node_pid;
@@ -360,10 +358,10 @@ int main() {
 
         qsort(balance_nodes, config.SO_NODES_NUM + new_nodes, sizeof(child_data), compare);
         qsort(balance_users, config.SO_USERS_NUM, sizeof(child_data), compare);
-        memcpy(top_nodes, balance_nodes, sizeof(child_data) * N_USER_TO_DISPLAY);
-        memcpy(top_users, balance_users, sizeof(child_data) * N_USER_TO_DISPLAY);
-        memcpy(worst_users, balance_users + config.SO_USERS_NUM - N_USER_TO_DISPLAY,
-               sizeof(child_data) * N_USER_TO_DISPLAY);
+        memcpy(top_nodes, balance_nodes, sizeof(child_data) * N_CHILD_TO_DISPLAY);
+        memcpy(top_users, balance_users, sizeof(child_data) * N_CHILD_TO_DISPLAY);
+        memcpy(worst_users, balance_users + config.SO_USERS_NUM - N_CHILD_TO_DISPLAY,
+               sizeof(child_data) * N_CHILD_TO_DISPLAY);
 
         print_live_info(top_nodes, top_users, worst_users);
 
@@ -372,7 +370,10 @@ int main() {
 
     kill(0, SIGTERM);
 
-    /*print_ledger(); */
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    print_ledger();
 
     printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
     printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
@@ -393,13 +394,49 @@ int main() {
     print_final_report();
 
     cleanIPC();
+    free(balance_nodes);
+    free(balance_users);
 
     return 0;
 }
 
-void reverse(child_data child) {
-    int i = 0;
+int calculate_node_balance(pid_t node, int tmp_block_id) {
+    int node_balance = 0;
+    int i;
+    int j = SO_BLOCK_SIZE - 1;
 
+    for (i = 0; i < tmp_block_id; i++) {
+        if (master_ledger->blocks[i].transactions[j].receiver == node) {
+            node_balance += master_ledger->blocks[i].transactions[j].amount;
+        }
+    }
+
+    return node_balance;
+}
+
+int calculate_user_balance(pid_t user, int tmp_block_id) {
+    int user_balance = config.SO_BUDGET_INIT;
+    int i;
+    int j;
+    for (i = 0; i < tmp_block_id; i++) {
+        for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
+            if (master_ledger->blocks[i].transactions[j].sender == user) {
+                user_balance -= master_ledger->blocks[i].transactions[j].amount;
+                user_balance -= master_ledger->blocks[i].transactions[j].reward;
+            } else if (master_ledger->blocks[i].transactions[j].receiver == user) {
+                user_balance += master_ledger->blocks[i].transactions[j].amount;
+            }
+        }
+    }
+    return user_balance;
+}
+
+void init_array(child_data *array, int value) {
+    int i;
+    for (i = 0; i < N_CHILD_TO_DISPLAY; i++) {
+        array[i].pid = 0;
+        array[i].balance = value;
+    }
 }
 
 void shuffle(int *array) {
@@ -435,133 +472,6 @@ pid_t *get_random_friends(pid_t node) {
     return friend_list;
 }
 
-void print_live_info(child_data *top_nodes, child_data *top_users, child_data *worst_users) {
-    int i;
-    int j;
-    printf("\n%10s        %10s        %10s        %10s         %10s\n",
-           ANSI_COLOR_GREEN "==========TOP NODES==========" ANSI_COLOR_RESET,
-           ANSI_COLOR_GREEN "==========TOP USERS==========" ANSI_COLOR_RESET,
-           ANSI_COLOR_GREEN "=========WORST USERS=========" ANSI_COLOR_RESET,
-           ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET,
-           ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET);
-
-    printf("%8s      %5s    %8s          %8s      %5s    %8s         %8s     %5s    %8s               %10s               %10s\n",
-           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
-           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
-           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
-           "ACTIVE NODES",
-           "ACTIVE USERS");
-    printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
-    for (i = 0, j = N_USER_TO_DISPLAY - 1; i < N_USER_TO_DISPLAY && j >= 0; i++, j--) {
-        if (i == 0) {
-            printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10d                   %10d\n",
-                   top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
-                   top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
-                   worst_users[j].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[j].balance,
-                   active_nodes,
-                   active_users
-            );
-        } else {
-            printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10s                   %10s\n",
-                   top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
-                   top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
-                   worst_users[j].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[j].balance,
-                   "",
-                   ""
-            );
-        }
-    }
-}
-
-int calculate_user_balance(pid_t user, int tmp_block_id) {
-    int user_balance = config.SO_BUDGET_INIT;
-    int i;
-    int j;
-    for (i = 0; i < tmp_block_id; i++) {
-        for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
-            if (master_ledger->blocks[i].transactions[j].sender == user) {
-                user_balance -= master_ledger->blocks[i].transactions[j].amount;
-                user_balance -= master_ledger->blocks[i].transactions[j].reward;
-            } else if (master_ledger->blocks[i].transactions[j].receiver == user) {
-                user_balance += master_ledger->blocks[i].transactions[j].amount;
-            }
-        }
-    }
-    return user_balance;
-}
-
-int calculate_node_balance(pid_t node, int tmp_block_id) {
-    int node_balance = 0;
-    int i;
-    int j = SO_BLOCK_SIZE - 1;
-
-    for (i = 0; i < tmp_block_id; i++) {
-        if (master_ledger->blocks[i].transactions[j].receiver == node) {
-            node_balance += master_ledger->blocks[i].transactions[j].amount;
-        }
-    }
-
-    return node_balance;
-}
-
-void add_max(child_data *array, pid_t pid, int balance) {
-    int i;
-    int added = 0;
-    int present = 0;
-
-    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-        if (pid == array[i].pid) {
-            if (balance > array[i].balance) {
-                array[i].balance = balance;
-                qsort(array, N_USER_TO_DISPLAY, sizeof(child_data), compare);
-                added = 1;
-            } else {
-            }
-            present = 1;
-        }
-    }
-
-    if (present == 0) {
-        for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-            if (balance > array[i].balance) {
-                memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
-                array[i].pid = pid;
-                array[i].balance = balance;
-                added = 1;
-            }
-        }
-    }
-}
-
-void add_min(child_data *array, pid_t pid, int balance) {
-    int i;
-    int added = 0;
-    int present = 0;
-
-    for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-        if (pid == array[i].pid) {
-            if (balance < array[i].balance) {
-                array[i].balance = balance;
-                qsort(array, N_USER_TO_DISPLAY, sizeof(child_data), compare);
-                added = 1;
-            } else {
-            }
-            present = 1;
-        }
-    }
-
-    if (present == 0) {
-        for (i = 0; i < N_USER_TO_DISPLAY && !added; i++) {
-            if (balance < array[i].balance) {
-                memmove(array + i + 1, array + i, (N_USER_TO_DISPLAY - i - 1) * sizeof(*array));
-                array[i].pid = pid;
-                array[i].balance = balance;
-                added = 1;
-            }
-        }
-    }
-}
-
 int compare(const void *s1, const void *s2) {
     const child_data *c1 = (child_data *) s1;
     const child_data *c2 = (child_data *) s2;
@@ -575,45 +485,15 @@ int compare(const void *s1, const void *s2) {
     }
 }
 
-void init_array(child_data *array, int value) {
-    int i;
-    for (i = 0; i < N_USER_TO_DISPLAY; i++) {
-        array[i].pid = 0;
-        array[i].balance = value;
-    }
-}
+void check_deadlock() {
+    union semun sem_ds;
+    int sem_value;
+    sem_ds.val = 0;
 
-void print_ledger() {
-    int i;
-    int tmp_block_id;
-    lock(id_sem_block_id);
-    tmp_block_id = *block_id;
-    unlock(id_sem_block_id);
-    for (i = 0; i < tmp_block_id; i++) {
-        print_block(master_ledger->blocks[i]);
-        printf(ANSI_COLOR_GREEN "=============================================================================================================================\n" ANSI_COLOR_RESET);
+    sem_value = semctl(id_sem_block_id, 0, GETVAL, sem_ds.val);
+    if (sem_value == 0) {
+        unlock(id_sem_block_id);
     }
-}
-
-void print_final_report() {
-    printf(ANSI_COLOR_CYAN "\n\n==================SIMULATION REPORT==================\n" ANSI_COLOR_RESET);
-    printf("%s %s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET, "Reason of ending: ");
-    if (executing == 0) {
-        printf("%s", "time expired");
-    }
-    if (ledger_full == 1) {
-        printf("%s", ", ledger full");
-    }
-    if (active_users == 0) {
-        printf("%s", ", all users are dead");
-    }
-    printf(ANSI_COLOR_CYAN "%s\n", "                    |" ANSI_COLOR_RESET);
-    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
-    printf(" User processes dead = %d %s\n", config.SO_USERS_NUM - final_alive_users,
-           ANSI_COLOR_CYAN "                          |" ANSI_COLOR_RESET);
-    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
-    printf(" Number of blocks in the ledger = %d %s\n", *block_id, ANSI_COLOR_CYAN "             |" ANSI_COLOR_RESET);
-    printf(ANSI_COLOR_CYAN "================SIMULATION TERMINATED================\n" ANSI_COLOR_RESET);
 }
 
 void read_configuration(configuration *config) {
@@ -684,45 +564,9 @@ void read_configuration(configuration *config) {
     fclose(file);
 }
 
-void handler(int signal) {
-
-    switch (signal) {
-        case SIGALRM:
-            final_alive_users = active_users;
-            executing = 0;
-            check_semaphore();
-            break;
-
-        case SIGINT:
-            executing = 0;
-            check_semaphore();
-            break;
-
-        case SIGTERM:
-            executing = 0;
-            check_semaphore();
-            break;
-
-        case SIGQUIT:
-            executing = 0;
-            check_semaphore();
-            break;
-
-        case SIGUSR1:
-            active_users--;
-            break;
-
-        case SIGUSR2:
-            active_nodes--;
-            break;
-
-        default:
-            break;
-    }
-}
-
 void cleanIPC() {
     free(node_list);
+    free(tmp_node_list);
 
     shmdt(master_ledger);
     shmdt(user_list);
@@ -742,13 +586,111 @@ void cleanIPC() {
     semctl(id_sem_block_id, 0, IPC_RMID);
 }
 
-void check_semaphore() {
-    union semun sem_ds;
-    int sem_value;
-    sem_ds.val = 0;
+void print_live_info(child_data *top_nodes, child_data *top_users, child_data *worst_users) {
+    int i;
+    int j;
+    printf("\n%10s        %10s        %10s        %10s         %10s\n",
+           ANSI_COLOR_GREEN "==========TOP NODES==========" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "==========TOP USERS==========" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "=========WORST USERS=========" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET,
+           ANSI_COLOR_GREEN "==================" ANSI_COLOR_RESET);
 
-    sem_value = semctl(id_sem_block_id, 0, GETVAL, sem_ds.val);
-    if (sem_value == 0) {
-        unlock(id_sem_block_id);
+    printf("%8s      %5s    %8s          %8s      %5s    %8s         %8s     %5s    %8s               %10s               %10s\n",
+           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
+           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
+           "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE",
+           "ACTIVE NODES",
+           "ACTIVE USERS");
+    printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
+    for (i = 0, j = N_CHILD_TO_DISPLAY - 1; i < N_CHILD_TO_DISPLAY && j >= 0; i++, j--) {
+        if (i == 0) {
+            printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10d                   %10d\n",
+                   top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
+                   top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
+                   worst_users[j].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[j].balance,
+                   active_nodes,
+                   active_users
+            );
+        } else {
+            printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10s                   %10s\n",
+                   top_nodes[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_nodes[i].balance,
+                   top_users[i].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, top_users[i].balance,
+                   worst_users[j].pid, ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, worst_users[j].balance,
+                   "",
+                   ""
+            );
+        }
+    }
+}
+
+void print_ledger() {
+    int i;
+    int tmp_block_id;
+    lock(id_sem_block_id);
+    tmp_block_id = *block_id;
+    unlock(id_sem_block_id);
+    printf(ANSI_COLOR_GREEN "============================================================LEDGER============================================================\n" ANSI_COLOR_RESET);
+    for (i = 0; i < tmp_block_id; i++) {
+        print_block(master_ledger->blocks[i]);
+        printf(ANSI_COLOR_GREEN "=============================================================================================================================\n" ANSI_COLOR_RESET);
+    }
+}
+
+void print_final_report() {
+    printf(ANSI_COLOR_CYAN "\n\n==================SIMULATION REPORT==================\n" ANSI_COLOR_RESET);
+    printf("%s %s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET, "Reason of ending: ");
+    if (executing == 0) {
+        printf("%s", "time expired");
+    }
+    if (ledger_full == 1) {
+        printf("%s", ", ledger full");
+    }
+    if (active_users == 0) {
+        printf("%s", ", all users are dead");
+    }
+    printf(ANSI_COLOR_CYAN "%s\n", "                    |" ANSI_COLOR_RESET);
+    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
+    printf(" User processes dead = %d %s\n", config.SO_USERS_NUM - final_alive_users,
+           ANSI_COLOR_CYAN "                          |" ANSI_COLOR_RESET);
+    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
+    printf(" Number of blocks in the ledger = %d %s\n", *block_id, ANSI_COLOR_CYAN "             |" ANSI_COLOR_RESET);
+    printf(ANSI_COLOR_CYAN "================SIMULATION TERMINATED================\n" ANSI_COLOR_RESET);
+}
+
+void handler(int signal) {
+
+    switch (signal) {
+        case SIGALRM:
+            final_alive_users = active_users;
+            executing = 0;
+            check_deadlock();
+            break;
+
+        case SIGINT:
+            executing = 0;
+            check_deadlock();
+            break;
+
+        case SIGTERM:
+            executing = 0;
+            check_deadlock();
+            break;
+
+        case SIGQUIT:
+            executing = 0;
+            check_deadlock();
+            break;
+
+        case SIGUSR1:
+            active_users--;
+            break;
+
+        case SIGUSR2:
+            active_nodes--;
+            break;
+
+        default:
+            break;
     }
 }

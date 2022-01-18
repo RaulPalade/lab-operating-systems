@@ -111,6 +111,8 @@ typedef struct {
     friend_transaction f_transaction;
 } friend_message;
 
+long get_timestamp_millis();
+
 int equal_transaction(transaction, transaction);
 
 int array_contains(transaction *, transaction);
@@ -124,7 +126,5 @@ void print_transaction(transaction);
 void print_block(block);
 
 void print_all_transactions(transaction *);
-
-long get_timestamp_millis();
 
 #endif

@@ -235,14 +235,6 @@ pid_t get_random_user() {
     return user_list[random];
 }
 
-void print_processing_list() {
-    int i;
-    print_table_header();
-    for (i = 0; i < n_processing_transactions; i++) {
-        print_transaction(processing_transactions[i]);
-    }
-}
-
 void die() {
     int i;
     int found = 0;
@@ -254,8 +246,15 @@ void die() {
     }
 }
 
+void print_processing_list() {
+    int i;
+    print_table_header();
+    for (i = 0; i < n_processing_transactions; i++) {
+        print_transaction(processing_transactions[i]);
+    }
+}
+
 void handler(int signal) {
-    transaction t;
     switch (signal) {
         case SIGINT:
             kill(getppid(), SIGUSR1);

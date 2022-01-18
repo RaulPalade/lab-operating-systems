@@ -1,5 +1,15 @@
 #include "../include/util.h"
 
+long get_timestamp_millis() {
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    return t.tv_sec * 1000 + lround(t.tv_nsec / 1e6);
+}
+
+int equal_transaction(transaction t1, transaction t2) {
+    return t1.timestamp == t2.timestamp && t1.sender == t2.sender && t1.receiver == t2.receiver;
+}
+
 int array_contains(transaction *transactions, transaction t) {
     int contains = 0;
     int i;
@@ -10,10 +20,6 @@ int array_contains(transaction *transactions, transaction t) {
     }
 
     return contains;
-}
-
-int equal_transaction(transaction t1, transaction t2) {
-    return t1.timestamp == t2.timestamp && t1.sender == t2.sender && t1.receiver == t2.receiver;
 }
 
 void print_configuration(configuration configuration) {
@@ -68,10 +74,4 @@ void print_all_transactions(transaction *transactions) {
         print_transaction(transactions[i]);
     }
     printf("-----------------------------------------------------------------------------------------------------\n");
-}
-
-long get_timestamp_millis() {
-    struct timespec t;
-    clock_gettime(CLOCK_REALTIME, &t);
-    return t.tv_sec * 1000 + lround(t.tv_nsec / 1e6);
 }

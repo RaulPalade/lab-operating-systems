@@ -20,14 +20,12 @@ transaction new_reward_transaction(int);
 
 int add_to_ledger(block block);
 
-void print_transaction_pool();
-
-void update_info();
-
-void clean_transaction_pool();
+pid_t get_random_friend();
 
 void add_new_friend(pid_t node);
 
-pid_t get_random_friend();
+void clean_transaction_pool();
+
+void print_transaction_pool();
 
 void handler(int);
