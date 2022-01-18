@@ -116,6 +116,7 @@ int main(int argc, char *argv[]) {
         for (i = 0; i < so_friends_num; i++) {
             printf("%d\n", friends[i]);
         }
+        print_transaction_pool();
     }
 
     wait_for_master(id_sem_init);

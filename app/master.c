@@ -323,12 +323,12 @@ int main() {
                     new_nodes++;
                     node_list = realloc(node_list, sizeof(pid_t) * (config.SO_NODES_NUM + new_nodes));
                     tmp_node_list = realloc(tmp_node_list, sizeof(pid_t) * (config.SO_NODES_NUM + new_nodes));
-                    node_list[node_i] = node_pid;
-                    tmp_node_list[node_i] = node_pid;
+                    node_list[node_i - 1] = node_pid;
+                    tmp_node_list[node_i - 1] = node_pid;
             }
 
             /* SEND FRIENDS TO NEW PROCESS CREATED */
-            friend_list_msg.mtype = node_list[node_i];
+            friend_list_msg.mtype = node_list[node_i - 1];
             memcpy(friend_list_msg.friends, get_random_friends(friend_list_msg.mtype),
                    sizeof(pid_t) * config.SO_FRIENDS_NUM);
             msgsnd(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), 0);
@@ -345,6 +345,7 @@ int main() {
                 friend_list_msg.friends[0] = node_pid;
                 msgsnd(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), 0);
             }
+            printf("Now\n");
         }
 
         lock(id_sem_block_id);
@@ -723,7 +724,6 @@ void cleanIPC() {
     shmdt(master_ledger);
     shmdt(user_list);
     shmdt(block_id);
-    shmdt(readers_block_id);
 
     shmctl(id_shm_ledger, IPC_RMID, NULL);
     shmctl(id_shm_user_list, IPC_RMID, NULL);
