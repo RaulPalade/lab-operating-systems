@@ -240,11 +240,12 @@ int add_to_ledger(block block) {
         master_ledger->blocks[*block_id] = block;
         (*block_id)++;
         balance += block.transactions[SO_BLOCK_SIZE - 1].amount;
+        unlock(id_sem_block_id);
         added = 1;
     } else {
         kill(getppid(), SIGUSR2);
+        unlock(id_sem_block_id);
     }
-    unlock(id_sem_block_id);
 
     return added;
 }
