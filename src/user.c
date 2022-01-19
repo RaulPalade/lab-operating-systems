@@ -32,6 +32,7 @@ int so_retry;
 int so_min_trans_gen_nsec;
 int so_max_trans_gen_nsec;
 int so_users_num;
+int so_reward;
 
 int dying = 0;
 int n_processing_transactions = 0;
@@ -67,27 +68,28 @@ int main(int argc, char *argv[]) {
     so_min_trans_gen_nsec = atoi(argv[4]);
     so_max_trans_gen_nsec = atoi(argv[5]);
     so_users_num = atoi(argv[6]);
+    so_reward = atoi(argv[7]);
 
     /* SHARED MEMORY ATTACHING */
-    id_shm_ledger = atoi(argv[7]);
+    id_shm_ledger = atoi(argv[8]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     TEST_ERROR
 
-    id_shm_user_list = atoi(argv[8]);
+    id_shm_user_list = atoi(argv[9]);
     user_list = shmat(id_shm_user_list, NULL, 0);
     TEST_ERROR
 
-    id_shm_block_id = atoi(argv[9]);
+    id_shm_block_id = atoi(argv[10]);
     block_id = shmat(id_shm_block_id, NULL, 0);
     TEST_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_tx_node_user = atoi(argv[10]);
-    id_msg_tx_user_node = atoi(argv[11]);
+    id_msg_tx_node_user = atoi(argv[11]);
+    id_msg_tx_user_node = atoi(argv[12]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[12]);
-    id_sem_block_id = atoi(argv[13]);
+    id_sem_init = atoi(argv[13]);
+    id_sem_block_id = atoi(argv[14]);
 
     wait_for_master(id_sem_init);
 
@@ -158,7 +160,7 @@ transaction new_transaction() {
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_nsec);
     random = (rand() % (upper - lower + 1)) + lower;
-    toNode = (random * 20) / 100;
+    toNode = ceil((random * so_reward) / 100.00);
     toUser = random - toNode;
 
     transaction.timestamp = get_timestamp_millis();

@@ -71,7 +71,7 @@ int main() {
     child_data worst_users[N_CHILD_TO_DISPLAY];
 
     char *args_node[17] = {NODE};
-    char *args_user[15] = {USER};
+    char *args_user[16] = {USER};
     char index_node[3 * sizeof(int) + 1];
     char index_user[3 * sizeof(int) + 1];
 
@@ -87,6 +87,7 @@ int main() {
     char so_max_trans_gen_nsec[3 * sizeof(int) + 1];
     char so_nodes_num[3 * sizeof(int) + 1];
     char so_users_num[3 * sizeof(int) + 1];
+    char so_reward[3 * sizeof(int) + 1];
 
     char id_shm_ledger_str[3 * sizeof(int) + 1];
     char id_shm_block_id_str[3 * sizeof(int) + 1];
@@ -211,6 +212,7 @@ int main() {
     sprintf(so_max_trans_gen_nsec, "%d", config.SO_MAX_TRANS_GEN_NSEC);
     sprintf(so_nodes_num, "%d", config.SO_NODES_NUM);
     sprintf(so_users_num, "%d", config.SO_USERS_NUM);
+    sprintf(so_reward, "%d", config.SO_REWARD);
 
     sprintf(id_shm_ledger_str, "%d", id_shm_ledger);
     sprintf(id_shm_user_list_str, "%d", id_shm_user_list);
@@ -246,14 +248,15 @@ int main() {
     args_user[4] = so_min_trans_gen_nsec;
     args_user[5] = so_max_trans_gen_nsec;
     args_user[6] = so_users_num;
-    args_user[7] = id_shm_ledger_str;
-    args_user[8] = id_shm_user_list_str;
-    args_user[9] = id_shm_block_id_str;
-    args_user[10] = id_msg_tx_node_user_str;
-    args_user[11] = id_msg_tx_user_node_str;
-    args_user[12] = id_sem_init_str;
-    args_user[13] = id_sem_block_id_str;
-    args_user[14] = NULL;
+    args_user[7] = so_reward;
+    args_user[8] = id_shm_ledger_str;
+    args_user[9] = id_shm_user_list_str;
+    args_user[10] = id_shm_block_id_str;
+    args_user[11] = id_msg_tx_node_user_str;
+    args_user[12] = id_msg_tx_user_node_str;
+    args_user[13] = id_sem_init_str;
+    args_user[14] = id_sem_block_id_str;
+    args_user[15] = NULL;
 
     for (node_i = 0; node_i < config.SO_NODES_NUM; node_i++) {
         switch (node_pid = fork()) {
