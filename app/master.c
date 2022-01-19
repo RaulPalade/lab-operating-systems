@@ -658,9 +658,10 @@ void print_final_report() {
     printf("\nUser processes dead = %d\n", config.SO_USERS_NUM - final_alive_users);
     printf("Number of blocks in the ledger = %d\n", *block_id);
     for (i = 0; i < config.SO_NODES_NUM + new_nodes; i++) {
-        msgrcv(id_msg_tx_node_master, &txl_node, sizeof(node_txl_message), getpid(), 0);
+        msgrcv(id_msg_tx_node_master, &txl_node, sizeof(txl_node), getpid(), 0);
         printf("Node %d transaction left: %d\n", txl_node.n.pid, txl_node.n.transactions_left);
     }
+    printf("id_shm_ledger = %d\n", id_shm_ledger);
     printf(ANSI_COLOR_CYAN "=====================================================\n" ANSI_COLOR_RESET);
     printf(ANSI_COLOR_CYAN "================SIMULATION TERMINATED================\n" ANSI_COLOR_RESET);
 }

@@ -259,14 +259,23 @@ void print_processing_list() {
 void handler(int signal) {
     switch (signal) {
         case SIGINT:
+            shmdt(master_ledger);
+            shmdt(user_list);
+            shmdt(block_id);
             kill(getppid(), SIGUSR1);
             exit(0);
 
         case SIGTERM:
+            shmdt(master_ledger);
+            shmdt(user_list);
+            shmdt(block_id);
             kill(getppid(), SIGUSR1);
             exit(0);
 
         case SIGQUIT:
+            shmdt(master_ledger);
+            shmdt(user_list);
+            shmdt(block_id);
             kill(getppid(), SIGUSR1);
             exit(0);
 

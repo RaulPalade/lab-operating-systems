@@ -21,11 +21,11 @@
 /*#define SO_BLOCK_SIZE 100
 #define SO_REGISTRY_SIZE 1000*/
 
-#define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 10000
-
 /*#define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 1000*/
+#define SO_REGISTRY_SIZE 10000*/
+
+#define SO_BLOCK_SIZE 10
+#define SO_REGISTRY_SIZE 1000
 
 #define SENDER_TRANSACTION_REWARD -1
 
@@ -46,9 +46,10 @@
 #define PROJ_ID_MSG_FRIEND_LIST 'f'
 #define PROJ_ID_MSG_NODE_FRIENDS 'g'
 #define PROJ_ID_MSG_NODE_MASTER 'h'
+#define PROJ_ID_MSG_TX_LEFT 'i'
 
-#define PROJ_ID_SEM_INIT 'i'
-#define PROJ_ID_SEM_BLOCK_ID 'l'
+#define PROJ_ID_SEM_INIT 'l'
+#define PROJ_ID_SEM_BLOCK_ID 'm'
 
 #define TEST_ERROR                                                                                           \
     if (errno) {                                                                                                \

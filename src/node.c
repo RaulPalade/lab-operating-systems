@@ -280,7 +280,8 @@ void send_transaction_left_to_master() {
     txl_node.mtype = getppid();
     txl_node.n.pid = getpid();
     txl_node.n.transactions_left = transaction_pool_size;
-    msgsnd(id_msg_tx_node_master, &txl_node, sizeof(node_txl_message), 0);
+    printf("txl_node.n.transactions_left=%d\n", txl_node.n.transactions_left);
+    msgsnd(id_msg_tx_node_master, &txl_node, sizeof(txl_node), 0);
 }
 
 void clean_transaction_pool() {
@@ -309,18 +310,24 @@ void handler(int signal) {
         case SIGINT:
             send_transaction_left_to_master();
             clean_transaction_pool();
+            shmdt(master_ledger);
+            shmdt(block_id);
             kill(getppid(), SIGUSR2);
             break;
 
         case SIGTERM:
             send_transaction_left_to_master();
             clean_transaction_pool();
+            shmdt(master_ledger);
+            shmdt(block_id);
             kill(getppid(), SIGUSR2);
             exit(0);
 
         case SIGQUIT:
             send_transaction_left_to_master();
             clean_transaction_pool();
+            shmdt(master_ledger);
+            shmdt(block_id);
             kill(getppid(), SIGUSR2);
             break;
 
