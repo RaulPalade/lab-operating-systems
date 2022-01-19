@@ -1,3 +1,6 @@
+#ifndef __NODE_H_
+#define __NODE_H_
+
 #include "util.h"
 #include "semlib.h"
 
@@ -31,3 +34,5 @@ void clean_transaction_pool();
 void print_transaction_pool();
 
 void handler(int);
+
+#endif

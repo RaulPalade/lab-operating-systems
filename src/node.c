@@ -1,54 +1,46 @@
 #include "../include/util.h"
 #include "../include/node.h"
 
+/* SHARED MEMORY STRUCTURES */
 ledger (*master_ledger);
 int *block_id;
 
-/* SHARED MEMORY */
-int id_shm_ledger;
-int id_shm_block_id;
-
-/* MESSAGE QUEUE IDS */
-int id_msg_tx_node_master;      /* USED TO SEND TRANSACTION WITH MAX HOPS FROM NODE TO MASTER */
-int id_msg_tx_node_user;        /* USED TO SEND FAILURE TRANSACTION FROM NODE TO USER */
-int id_msg_tx_user_node;        /* USED TO SEND NEW TRANSACTION FROM USER TO NODE */
-int id_msg_tx_node_friends;     /* USED TO SEND TRANSACTION FROM NODE TO ANOTHER FRIEND NODE */
-int id_msg_friend_list;         /* USED TO SEND NODE FRIEND LIST FROM MASTER TO NODE */
-
-/* SEMAPHORE*/
-int id_sem_init;
-int id_sem_block_id;
-
-int node_index;
-int so_tp_size;
-int so_min_trans_proc_nsec;
-int so_max_trans_proc_nsec;
-int so_friends_num;
-int so_hops;
-
-transaction_pool pool;
-int transaction_pool_size = 0;
-int balance = 0;
-
+/* MESSAGE QUEUE STRUCTURES */
 tx_message tx_node_master;
 tx_message tx_user_node;
 tx_message tx_node_user;
 friend_message tx_node_friend;
 friend_list_message friend_list_msg;
 node_txl_message txl_node;
-struct timeval timer;
 
+/* SHARED MEMORY ID */
+int id_shm_ledger;
+int id_shm_block_id;
+
+/* MESSAGE QUEUE ID */
+int id_msg_tx_node_master;
+int id_msg_tx_node_user;
+int id_msg_tx_user_node;
+int id_msg_tx_node_friends;
+int id_msg_friend_list;
+
+/* SEMAPHORE ID */
+int id_sem_init;
+int id_sem_block_id;
+
+/* CONFIGURATION VALUES */
+int so_tp_size;
+int so_min_trans_proc_nsec;
+int so_max_trans_proc_nsec;
+int so_friends_num;
+int so_hops;
+
+/* INTERNAL VARIABLES */
+transaction_pool pool;
+int transaction_pool_size = 0;
+int balance = 0;
 pid_t *friends;
 
-/**
- * NODE PROCESS
- * 1) Receive transaction from User                     
- * 2) Add transaction received to transaction pool      
- * 3) Add transaction to block                          
- * 4) Add reward transaction to block                   
- * 5) Execute transaction                               
- * 6) Remove transactions from transaction pool         
- */
 int main(int argc, char *argv[]) {
     int i;
     int time_to_send = TIMER_NEW_FRIEND_TRANSACTION;
@@ -65,34 +57,32 @@ int main(int argc, char *argv[]) {
     sigaction(SIGTERM, &sa, 0);
     sigaction(SIGQUIT, &sa, 0);
 
-    node_index = atoi(argv[1]);
-
-    /* CONFIG PARAMS */
-    so_tp_size = atoi(argv[2]);
-    so_min_trans_proc_nsec = atoi(argv[3]);
-    so_max_trans_proc_nsec = atoi(argv[4]);
-    so_friends_num = atoi(argv[5]);
-    so_hops = atoi(argv[6]);
+    /* CONFIGURATION PARAMS */
+    so_tp_size = atoi(argv[1]);
+    so_min_trans_proc_nsec = atoi(argv[2]);
+    so_max_trans_proc_nsec = atoi(argv[3]);
+    so_friends_num = atoi(argv[4]);
+    so_hops = atoi(argv[5]);
 
     /* SHARED MEMORY ATTACHING */
-    id_shm_ledger = atoi(argv[7]);
+    id_shm_ledger = atoi(argv[6]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     TEST_ERROR
 
-    id_shm_block_id = atoi(argv[8]);
+    id_shm_block_id = atoi(argv[7]);
     block_id = shmat(id_shm_block_id, NULL, 0);
     TEST_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_tx_node_master = atoi(argv[9]);
-    id_msg_tx_node_user = atoi(argv[10]);
-    id_msg_tx_user_node = atoi(argv[11]);
-    id_msg_tx_node_friends = atoi(argv[12]);
-    id_msg_friend_list = atoi(argv[13]);
+    id_msg_tx_node_master = atoi(argv[8]);
+    id_msg_tx_node_user = atoi(argv[9]);
+    id_msg_tx_user_node = atoi(argv[10]);
+    id_msg_tx_node_friends = atoi(argv[11]);
+    id_msg_friend_list = atoi(argv[12]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[14]);
-    id_sem_block_id = atoi(argv[15]);
+    id_sem_init = atoi(argv[13]);
+    id_sem_block_id = atoi(argv[14]);
 
     pool.transactions = malloc(so_tp_size * sizeof(transaction));
     friends = malloc(so_friends_num * sizeof(pid_t));
@@ -117,7 +107,7 @@ int main(int argc, char *argv[]) {
             add_new_friend(friend_list_msg.friends[0]);
         }
 
-        /* FRIEND TRANSACTION */
+        /* RECEIVE FRIEND TRANSACTION */
         if (msgrcv(id_msg_tx_node_friends, &tx_node_friend, sizeof(friend_message), getpid(), IPC_NOWAIT) != -1) {
             added_to_tp = add_to_transaction_pool(tx_node_friend.f_transaction.t);
             if (!added_to_tp) {
@@ -133,7 +123,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        /* USER TRANSACTION */
+        /* RECEIVE USER TRANSACTION */
         if (msgrcv(id_msg_tx_user_node, &tx_user_node, sizeof(tx_message), 1, IPC_NOWAIT) != -1) {
             user_receive_success = add_to_transaction_pool(tx_user_node.t);
             if (!user_receive_success) {
@@ -171,7 +161,7 @@ int add_to_transaction_pool(transaction t) {
         transaction_pool_size++;
         added = 1;
     } else {
-        printf("TP FULL\n");
+        return;
     }
 
     return added;
@@ -280,7 +270,6 @@ void send_transaction_left_to_master() {
     txl_node.mtype = getppid();
     txl_node.n.pid = getpid();
     txl_node.n.transactions_left = transaction_pool_size;
-    printf("txl_node.n.transactions_left=%d\n", txl_node.n.transactions_left);
     msgsnd(id_msg_tx_node_master, &txl_node, sizeof(txl_node), 0);
 }
 
@@ -312,14 +301,16 @@ void handler(int signal) {
             clean_transaction_pool();
             shmdt(master_ledger);
             shmdt(block_id);
+            free(friends);
             kill(getppid(), SIGUSR2);
-            break;
+            exit(0);
 
         case SIGTERM:
             send_transaction_left_to_master();
             clean_transaction_pool();
             shmdt(master_ledger);
             shmdt(block_id);
+            free(friends);
             kill(getppid(), SIGUSR2);
             exit(0);
 
@@ -328,8 +319,9 @@ void handler(int signal) {
             clean_transaction_pool();
             shmdt(master_ledger);
             shmdt(block_id);
+            free(friends);
             kill(getppid(), SIGUSR2);
-            break;
+            exit(0);
 
         default:
             break;

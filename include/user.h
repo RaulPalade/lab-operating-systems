@@ -1,3 +1,6 @@
+#ifndef __USER_H_
+#define __USER_H_
+
 #include "util.h"
 #include "semlib.h"
 
@@ -18,3 +21,5 @@ void die();
 void print_processing_list();
 
 void handler(int);
+
+#endif

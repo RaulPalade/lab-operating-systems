@@ -1,11 +1,10 @@
 #include "../include/master.h"
 #include "../include/siglib.h"
 
-#define N_BALANCE_PRINT 10
-
+/* CONFIGURATION STRUCTURE */
 configuration config;
 
-/* SHARED MEMORY SEGMENTS */
+/* SHARED MEMORY STRUCTURES */
 ledger (*master_ledger);
 pid_t *user_list;
 int *block_id;
@@ -13,24 +12,24 @@ int *readers_block_id;
 
 /* MESSAGE QUEUE STRUCTURES */
 friend_list_message friend_list_msg;    /* USED TO ADD LIST OF FRIENDS TO THE MESSAGE */
-tx_message tx_node_master;          /* USED FOR TRANSACTION MESSAGE FROM NODE TO MASTER */
-node_txl_message txl_node;
+tx_message tx_node_master;              /* USED FOR TRANSACTION MESSAGE FROM NODE TO MASTER */
+node_txl_message txl_node;              /* USED BY NODE TO SEND TX LEFT AT THE END TO MASTER */
 
-/* SHARED MEMORY IDS */
-int id_shm_ledger;
-int id_shm_user_list;
-int id_shm_block_id;
+/* SHARED MEMORY ID */
+int id_shm_ledger;              /* USED TO STORE THE LEDGER */
+int id_shm_user_list;           /* USED TO SHARE USER PID LIST BETWEEN USERS */
+int id_shm_block_id;            /*  */
 
-/* MESSAGE QUEUE IDS */
+/* MESSAGE QUEUE ID */
 int id_msg_tx_node_master;      /* USED TO SEND TRANSACTION WITH MAX HOPS FROM NODE TO MASTER AND TX LEFT */
 int id_msg_tx_node_user;        /* USED TO SEND FAILURE TRANSACTION FROM NODE TO USER */
 int id_msg_tx_user_node;        /* USED TO SEND NEW TRANSACTION FROM USER TO NODE */
 int id_msg_tx_node_friends;     /* USED TO SEND TRANSACTION FROM NODE TO ANOTHER FRIEND NODE */
 int id_msg_friend_list;         /* USED TO SEND NODE FRIEND LIST FROM MASTER TO NODE */
 
-/* SEMAPHORE IDS */
-int id_sem_init;
-int id_sem_block_id;
+/* SEMAPHORE ID */
+int id_sem_init;                /* USED TO INIT ALL THE RESOURCES */
+int id_sem_block_id;            /* USED TO ACCESS CURRENT BLOCK ID IN LEDGER */
 
 /* SIMULATION RUNNING PARAMETERS */
 volatile int executing = 1;
@@ -38,25 +37,10 @@ int ledger_full = 0;
 int active_nodes = 0;
 int active_users = 0;
 int final_alive_users = 0;
-
-int initial_total_funds;
-int final_total_funds;
 int new_nodes;
-
 pid_t *node_list;
 pid_t *tmp_node_list;
 
-/**
- * MASTER PROCESS
- * 1) Acquire general semaphore to init resources
- * 2) Read configuration
- * 3) Init nodes => assign initial budget through args in execv
- * 4) Init users
- * 5) Release general semaphore 
- * 6) Print node and user budget each second
- * 7) Stop all nodes and users at the end of the simulation
- * 8) Print final report
- */
 int main() {
     int i;
     int node_i;
@@ -64,6 +48,13 @@ int main() {
     int node_balance;
     int user_balance;
     int tmp_block_id;
+    key_t key;
+    pid_t node_pid;
+    pid_t user_pid;
+    struct sigaction sa;
+    struct timespec request;
+    struct timespec remaining;
+    sigset_t my_mask;
 
     child_data *balance_nodes;
     child_data *balance_users;
@@ -71,8 +62,8 @@ int main() {
     child_data top_users[N_CHILD_TO_DISPLAY];
     child_data worst_users[N_CHILD_TO_DISPLAY];
 
-    char *args_node[17] = {NODE};
-    char *args_user[16] = {USER};
+    char *args_node[16] = {NODE};
+    char *args_user[15] = {USER};
     char index_node[3 * sizeof(int) + 1];
     char index_user[3 * sizeof(int) + 1];
 
@@ -103,13 +94,6 @@ int main() {
     char id_sem_init_str[3 * sizeof(int) + 1];
     char id_sem_block_id_str[3 * sizeof(int) + 1];
 
-    key_t key;
-    pid_t node_pid;
-    pid_t user_pid;
-    struct sigaction sa;
-    struct timespec request;
-    struct timespec remaining;
-    sigset_t my_mask;
     request.tv_sec = 1;
     request.tv_nsec = 0;
     remaining.tv_sec = 1;
@@ -228,45 +212,44 @@ int main() {
     sprintf(id_sem_init_str, "%d", id_sem_init);
     sprintf(id_sem_block_id_str, "%d", id_sem_block_id);
 
-    args_node[2] = so_tp_size;
-    args_node[3] = so_min_trans_proc_nsec;
-    args_node[4] = so_max_trans_proc_nsec;
-    args_node[5] = so_friends_num;
-    args_node[6] = so_hops_num;
-    args_node[7] = id_shm_ledger_str;
-    args_node[8] = id_shm_block_id_str;
-    args_node[9] = id_msg_tx_node_master_str;
-    args_node[10] = id_msg_tx_node_user_str;
-    args_node[11] = id_msg_tx_user_node_str;
-    args_node[12] = id_msg_tx_node_friends_str;
-    args_node[13] = id_msg_friend_list_str;
-    args_node[14] = id_sem_init_str;
-    args_node[15] = id_sem_block_id_str;
-    args_node[16] = NULL;
+    args_node[1] = so_tp_size;
+    args_node[2] = so_min_trans_proc_nsec;
+    args_node[3] = so_max_trans_proc_nsec;
+    args_node[4] = so_friends_num;
+    args_node[5] = so_hops_num;
+    args_node[6] = id_shm_ledger_str;
+    args_node[7] = id_shm_block_id_str;
+    args_node[8] = id_msg_tx_node_master_str;
+    args_node[9] = id_msg_tx_node_user_str;
+    args_node[10] = id_msg_tx_user_node_str;
+    args_node[11] = id_msg_tx_node_friends_str;
+    args_node[12] = id_msg_friend_list_str;
+    args_node[13] = id_sem_init_str;
+    args_node[14] = id_sem_block_id_str;
+    args_node[15] = NULL;
 
-    args_user[2] = so_budget_init;
-    args_user[3] = so_retry;
-    args_user[4] = so_min_trans_gen_nsec;
-    args_user[5] = so_max_trans_gen_nsec;
-    args_user[6] = so_users_num;
-    args_user[7] = so_reward;
-    args_user[8] = id_shm_ledger_str;
-    args_user[9] = id_shm_user_list_str;
-    args_user[10] = id_shm_block_id_str;
-    args_user[11] = id_msg_tx_node_user_str;
-    args_user[12] = id_msg_tx_user_node_str;
-    args_user[13] = id_sem_init_str;
-    args_user[14] = id_sem_block_id_str;
-    args_user[15] = NULL;
+    args_user[1] = so_budget_init;
+    args_user[2] = so_retry;
+    args_user[3] = so_min_trans_gen_nsec;
+    args_user[4] = so_max_trans_gen_nsec;
+    args_user[5] = so_users_num;
+    args_user[6] = so_reward;
+    args_user[7] = id_shm_ledger_str;
+    args_user[8] = id_shm_user_list_str;
+    args_user[9] = id_shm_block_id_str;
+    args_user[10] = id_msg_tx_node_user_str;
+    args_user[11] = id_msg_tx_user_node_str;
+    args_user[12] = id_sem_init_str;
+    args_user[13] = id_sem_block_id_str;
+    args_user[14] = NULL;
 
+    /* LAUNCHING NODE PROCESSES */
     for (node_i = 0; node_i < config.SO_NODES_NUM; node_i++) {
         switch (node_pid = fork()) {
             case -1:
                 TEST_ERROR
 
             case 0:
-                sprintf(index_node, "%d", node_i);
-                args_node[1] = index_node;
                 execv("node", args_node);
 
             default:
@@ -276,6 +259,7 @@ int main() {
         }
     }
 
+    /* SENDING LIST OF FRIENDS TO ALL NODES */
     for (i = 0; i < config.SO_NODES_NUM; i++) {
         friend_list_msg.mtype = node_list[i];
         memcpy(friend_list_msg.friends, get_random_friends(friend_list_msg.mtype),
@@ -283,19 +267,17 @@ int main() {
         msgsnd(id_msg_friend_list, &friend_list_msg, sizeof(friend_list_message), 0);
     }
 
+    /* LAUNCHING USER PROCESSES */
     for (user_i = 0; user_i < config.SO_USERS_NUM; user_i++) {
         switch (user_pid = fork()) {
             case -1:
                 TEST_ERROR
 
             case 0:
-                sprintf(index_user, "%d", user_i);
-                args_user[1] = index_user;
                 execv("user", args_user);
 
             default:
                 user_list[user_i] = user_pid;
-                initial_total_funds += 1000;
                 active_users++;
         }
     }
@@ -308,8 +290,11 @@ int main() {
 
     delete_shm_segments();
 
+    /* SIMULATION EXECUTION */
     while (executing && !ledger_full && active_users > 0) {
+        /* RECEIVING MESSAGES FROM NODE IN CASE OF TX FAIL */
         if (msgrcv(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), getpid(), IPC_NOWAIT) != -1) {
+            /* CREAE NEW PROCESS */
             switch (node_pid = fork()) {
                 case -1:
                     TEST_ERROR
@@ -351,18 +336,22 @@ int main() {
         tmp_block_id = *block_id;
         unlock(id_sem_block_id);
         tmp_block_id--;
+
+        /* CALCULATING NODE BALANCE */
         for (i = 0; i < config.SO_NODES_NUM + new_nodes; i++) {
             node_balance = calculate_node_balance(node_list[i], tmp_block_id);
             balance_nodes[i].pid = node_list[i];
             balance_nodes[i].balance = node_balance;
         }
 
+        /* CALCULATING USER BALANCE */
         for (i = 0; i < config.SO_USERS_NUM; i++) {
             user_balance = calculate_user_balance(user_list[i], tmp_block_id);
             balance_users[i].pid = user_list[i];
             balance_users[i].balance = user_balance;
         }
 
+        /* SORTING BALANCE LISTS */
         qsort(balance_nodes, config.SO_NODES_NUM + new_nodes, sizeof(child_data), compare);
         qsort(balance_users, config.SO_USERS_NUM, sizeof(child_data), compare);
         memcpy(top_nodes, balance_nodes, sizeof(child_data) * N_CHILD_TO_DISPLAY);
@@ -382,6 +371,7 @@ int main() {
     printf("\n");
     print_ledger();
 
+    /* PRINTING FINAL BALANCES NODES */
     printf("\n%s\n", ANSI_COLOR_GREEN "=============NODES=============" ANSI_COLOR_RESET);
     printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
     printf("%s\n", ANSI_COLOR_GREEN "===============================" ANSI_COLOR_RESET);
@@ -390,6 +380,7 @@ int main() {
         printf("%8d    %5s    %8d\n", node_list[i], "|", node_balance);
     }
 
+    /* PRINTING FINAL BALANCES USERS */
     printf("\n%s\n", ANSI_COLOR_GREEN "=============USERS=============" ANSI_COLOR_RESET);
     printf("%8s        %5s    %8s\n", "PID", ANSI_COLOR_MAGENTA "|" ANSI_COLOR_RESET, "BALANCE");
     printf("%s\n", ANSI_COLOR_GREEN "===============================" ANSI_COLOR_RESET);
@@ -428,6 +419,7 @@ int calculate_user_balance(pid_t user, int tmp_block_id) {
     int user_balance = config.SO_BUDGET_INIT;
     int i;
     int j;
+
     for (i = 0; i < tmp_block_id; i++) {
         for (j = 0; j < SO_BLOCK_SIZE - 1; j++) {
             if (master_ledger->blocks[i].transactions[j].sender == user) {
@@ -438,6 +430,7 @@ int calculate_user_balance(pid_t user, int tmp_block_id) {
             }
         }
     }
+
     return user_balance;
 }
 
@@ -454,7 +447,6 @@ void shuffle(int *array) {
     size_t j;
     int tmp;
     struct timespec tp;
-
     clock_gettime(CLOCK_REALTIME, &tp);
     srand(tp.tv_nsec);
     if (config.SO_NODES_NUM > 1) {
@@ -485,7 +477,6 @@ pid_t *get_random_friends(pid_t node) {
 int compare(const void *s1, const void *s2) {
     const child_data *c1 = (child_data *) s1;
     const child_data *c2 = (child_data *) s2;
-
     if (c1->balance < c2->balance) {
         return 1;
     } else if (c1->balance > c2->balance) {
@@ -499,7 +490,6 @@ void check_deadlock() {
     union semun sem_ds;
     int sem_value;
     sem_ds.val = 0;
-
     sem_value = semctl(id_sem_block_id, 0, GETVAL, sem_ds.val);
     if (sem_value == 0) {
         unlock(id_sem_block_id);
@@ -671,7 +661,6 @@ void print_final_report() {
 }
 
 void handler(int signal) {
-
     switch (signal) {
         case SIGALRM:
             final_alive_users = active_users;
@@ -680,16 +669,19 @@ void handler(int signal) {
             break;
 
         case SIGINT:
+            final_alive_users = active_users;
             executing = 0;
             check_deadlock();
             break;
 
         case SIGTERM:
+            final_alive_users = active_users;
             executing = 0;
             check_deadlock();
             break;
 
         case SIGQUIT:
+            final_alive_users = active_users;
             executing = 0;
             check_deadlock();
             break;

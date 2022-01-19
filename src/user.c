@@ -1,32 +1,30 @@
 #include "../include/util.h"
 #include "../include/user.h"
 
-configuration (*config);
+/* SHARED MEMORY STRUCTURES */
 ledger (*master_ledger);
 pid_t (*user_list);
 int *block_id;
 
-/* SHARED MEMORY */
+/* MESSAGE QUEUE DATA STRUCTURE */
+tx_message tx_user_node;
+tx_message tx_node_user;
+
+/* SHARED MEMORY ID */
 int id_shm_ledger;
 int id_shm_user_list;
 int id_shm_block_id;
 
-/* MESSAGE QUEUE */
+/* MESSAGE QUEUES ID */
 int id_msg_tx_node_user;
 int id_msg_tx_user_node;
 
-/* SEMAPHORE*/
+/* SEMAPHORE ID */
 int id_sem_init;
 int id_sem_block_id;
 int id_sem_readers_block_id;
 
-/* MESSAGE DATA STRUCTURE */
-tx_message tx_user_node;
-tx_message tx_node_user;
-
-/* INTERNAL VARIABLES */
-transaction (*processing_transactions);
-int user_index;
+/* CONFIGURATION VALUES */
 int so_budget_init;
 int so_retry;
 int so_min_trans_gen_nsec;
@@ -34,18 +32,12 @@ int so_max_trans_gen_nsec;
 int so_users_num;
 int so_reward;
 
+/* INTERNAL VARIABLES */
+transaction (*processing_transactions);
 int dying = 0;
 int n_processing_transactions = 0;
 int last_block_checked = 0;
 
-/**
- * USER PROCESS
- * 1) Calculate balance from ledger
- * 2) Extract random user
- * 3) Calculate user revenue (amount)
- * 4) Calculate node revenue (reward)
- * 5) Send transaction
- */
 int main(int argc, char *argv[]) {
     int i;
     struct sigaction sa;
@@ -61,35 +53,33 @@ int main(int argc, char *argv[]) {
     sigaction(SIGUSR1, &sa, 0);
 
     /* SHARED MEMORY CREATION */
-    user_index = atoi(argv[1]);
-
-    so_budget_init = atoi(argv[2]);
-    so_retry = atoi(argv[3]);
-    so_min_trans_gen_nsec = atoi(argv[4]);
-    so_max_trans_gen_nsec = atoi(argv[5]);
-    so_users_num = atoi(argv[6]);
-    so_reward = atoi(argv[7]);
+    so_budget_init = atoi(argv[1]);
+    so_retry = atoi(argv[2]);
+    so_min_trans_gen_nsec = atoi(argv[3]);
+    so_max_trans_gen_nsec = atoi(argv[4]);
+    so_users_num = atoi(argv[5]);
+    so_reward = atoi(argv[6]);
 
     /* SHARED MEMORY ATTACHING */
-    id_shm_ledger = atoi(argv[8]);
+    id_shm_ledger = atoi(argv[7]);
     master_ledger = shmat(id_shm_ledger, NULL, 0);
     TEST_ERROR
 
-    id_shm_user_list = atoi(argv[9]);
+    id_shm_user_list = atoi(argv[8]);
     user_list = shmat(id_shm_user_list, NULL, 0);
     TEST_ERROR
 
-    id_shm_block_id = atoi(argv[10]);
+    id_shm_block_id = atoi(argv[9]);
     block_id = shmat(id_shm_block_id, NULL, 0);
     TEST_ERROR
 
     /* MESSAGE QUEUE ATTACHING */
-    id_msg_tx_node_user = atoi(argv[11]);
-    id_msg_tx_user_node = atoi(argv[12]);
+    id_msg_tx_node_user = atoi(argv[10]);
+    id_msg_tx_user_node = atoi(argv[11]);
 
     /* SEMAPHORE CREATION */
-    id_sem_init = atoi(argv[13]);
-    id_sem_block_id = atoi(argv[14]);
+    id_sem_init = atoi(argv[12]);
+    id_sem_block_id = atoi(argv[13]);
 
     wait_for_master(id_sem_init);
 
@@ -100,7 +90,6 @@ int main(int argc, char *argv[]) {
                     so_budget_init += tx_user_node.t.amount;
                     so_budget_init += tx_user_node.t.reward;
                     remove_from_processing_list(i);
-                    printf("Here\n");
                 }
             }
         }
@@ -179,6 +168,7 @@ void execute_transaction() {
     struct timespec request, remaining;
     transaction transaction;
     int balance = calculate_balance();
+
     if (balance >= 2) {
         transaction = new_transaction();
         tx_user_node.mtype = 1;
@@ -242,6 +232,7 @@ void die() {
     int found = 0;
     for (i = 0; i < so_users_num && !found; i++) {
         if (user_list[i] == getpid()) {
+            user_list[i] = -1;
             found = 1;
             raise(SIGINT);
         }

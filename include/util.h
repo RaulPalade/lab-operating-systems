@@ -21,11 +21,11 @@
 /*#define SO_BLOCK_SIZE 100
 #define SO_REGISTRY_SIZE 1000*/
 
-/*#define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 10000*/
-
 #define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 1000
+#define SO_REGISTRY_SIZE 10000
+
+/*#define SO_BLOCK_SIZE 10
+#define SO_REGISTRY_SIZE 1000*/
 
 #define SENDER_TRANSACTION_REWARD -1
 
@@ -58,6 +58,7 @@
     }
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
+
 typedef struct {
     int SO_USERS_NUM;
     int SO_NODES_NUM;
