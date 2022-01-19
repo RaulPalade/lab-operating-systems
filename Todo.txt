@@ -1,1 +1,0 @@
-1) Iniviare transazioni rimaste nella tp al master alla fine della simulazione
