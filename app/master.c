@@ -8,7 +8,6 @@ configuration config;
 ledger (*master_ledger);
 pid_t *user_list;
 int *block_id;
-int *readers_block_id;
 
 /* MESSAGE QUEUE STRUCTURES */
 friend_list_message friend_list_msg;    /* USED TO ADD LIST OF FRIENDS TO THE MESSAGE */
@@ -602,6 +601,7 @@ void print_live_info(child_data *top_nodes, child_data *top_users, child_data *w
            "ACTIVE NODES",
            "ACTIVE USERS");
     printf(ANSI_COLOR_GREEN "=============================        =============================        =============================        ==================         ==================\n" ANSI_COLOR_RESET);
+
     for (i = 0, j = N_CHILD_TO_DISPLAY - 1; i < N_CHILD_TO_DISPLAY && j >= 0; i++, j--) {
         if (i == 0) {
             printf("%8d      %5s  %8d            %8d      %5s  %8d            %8d    %5s  %8d             %10d                   %10d\n",

@@ -36,7 +36,6 @@ int so_reward;
 transaction (*processing_transactions);
 int dying = 0;
 int n_processing_transactions = 0;
-int last_block_checked = 0;
 
 int main(int argc, char *argv[]) {
     int i;
@@ -127,8 +126,6 @@ int calculate_balance() {
             }
         }
     }
-
-    last_block_checked = tmp_block_id;
 
     for (y = 0; y < n_processing_transactions; y++) {
         balance -= processing_transactions[y].amount + processing_transactions[y].reward;
