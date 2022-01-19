@@ -35,6 +35,7 @@ tx_message tx_user_node;
 tx_message tx_node_user;
 friend_message tx_node_friend;
 friend_list_message friend_list_msg;
+node_txl_message txl_node;
 struct timeval timer;
 
 pid_t *friends;
@@ -208,7 +209,7 @@ block new_block(transaction transactions[]) {
     int i;
     int total_reward = 0;
     int random;
-    struct timespec interval;
+    struct timespec request, remaining;
     int lower = so_min_trans_proc_nsec;
     int upper = so_max_trans_proc_nsec;
     block block;
@@ -218,15 +219,15 @@ block new_block(transaction transactions[]) {
     srand(tp.tv_nsec);
     random = (rand() % (upper - lower + 1)) + lower;
 
-    interval.tv_sec = 0;
-    interval.tv_nsec = random;
+    request.tv_sec = 0;
+    request.tv_nsec = random;
 
     for (i = 0; i < SO_BLOCK_SIZE - 1; i++) {
         block.transactions[i] = transactions[i];
         total_reward += transactions[i].reward;
     }
     block.transactions[SO_BLOCK_SIZE - 1] = new_reward_transaction(total_reward);
-    nanosleep(&interval, NULL);
+    nanosleep(&request, &remaining);
 
     return block;
 }
@@ -275,6 +276,13 @@ void add_new_friend(pid_t node) {
     friends[so_friends_num - 1] = node;
 }
 
+void send_transaction_left_to_master() {
+    txl_node.mtype = getppid();
+    txl_node.n.pid = getpid();
+    txl_node.n.transactions_left = transaction_pool_size;
+    msgsnd(id_msg_tx_node_master, &txl_node, sizeof(node_txl_message), 0);
+}
+
 void clean_transaction_pool() {
     int i;
     if (transaction_pool_size > 0) {
@@ -299,16 +307,19 @@ void print_transaction_pool() {
 void handler(int signal) {
     switch (signal) {
         case SIGINT:
+            send_transaction_left_to_master();
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             break;
 
         case SIGTERM:
+            send_transaction_left_to_master();
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             exit(0);
 
         case SIGQUIT:
+            send_transaction_left_to_master();
             clean_transaction_pool();
             kill(getppid(), SIGUSR2);
             break;

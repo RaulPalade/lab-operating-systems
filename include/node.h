@@ -24,6 +24,8 @@ pid_t get_random_friend();
 
 void add_new_friend(pid_t node);
 
+void send_transaction_left_to_master();
+
 void clean_transaction_pool();
 
 void print_transaction_pool();

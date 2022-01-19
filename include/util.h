@@ -21,11 +21,11 @@
 /*#define SO_BLOCK_SIZE 100
 #define SO_REGISTRY_SIZE 1000*/
 
-/*#define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 10000*/
-
 #define SO_BLOCK_SIZE 10
-#define SO_REGISTRY_SIZE 1000
+#define SO_REGISTRY_SIZE 10000
+
+/*#define SO_BLOCK_SIZE 10
+#define SO_REGISTRY_SIZE 1000*/
 
 #define SENDER_TRANSACTION_REWARD -1
 
@@ -110,6 +110,16 @@ typedef struct {
     long mtype;
     friend_transaction f_transaction;
 } friend_message;
+
+typedef struct {
+    pid_t pid;
+    int transactions_left;
+} node;
+
+typedef struct {
+    long mtype;
+    node n;
+} node_txl_message;
 
 long get_timestamp_millis();
 

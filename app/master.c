@@ -14,6 +14,7 @@ int *readers_block_id;
 /* MESSAGE QUEUE STRUCTURES */
 friend_list_message friend_list_msg;    /* USED TO ADD LIST OF FRIENDS TO THE MESSAGE */
 tx_message tx_node_master;          /* USED FOR TRANSACTION MESSAGE FROM NODE TO MASTER */
+node_txl_message txl_node;
 
 /* SHARED MEMORY IDS */
 int id_shm_ledger;
@@ -21,7 +22,7 @@ int id_shm_user_list;
 int id_shm_block_id;
 
 /* MESSAGE QUEUE IDS */
-int id_msg_tx_node_master;      /* USED TO SEND TRANSACTION WITH MAX HOPS FROM NODE TO MASTER */
+int id_msg_tx_node_master;      /* USED TO SEND TRANSACTION WITH MAX HOPS FROM NODE TO MASTER AND TX LEFT */
 int id_msg_tx_node_user;        /* USED TO SEND FAILURE TRANSACTION FROM NODE TO USER */
 int id_msg_tx_user_node;        /* USED TO SEND NEW TRANSACTION FROM USER TO NODE */
 int id_msg_tx_node_friends;     /* USED TO SEND TRANSACTION FROM NODE TO ANOTHER FRIEND NODE */
@@ -503,7 +504,7 @@ void read_configuration(configuration *config) {
     FILE *file;
     char s[23];
     char comment;
-    char filename[] = "../configurations/configuration3.conf";
+    char filename[] = "../configurations/configuration2.conf";
     int value;
     int i;
 
@@ -641,8 +642,10 @@ void print_ledger() {
 }
 
 void print_final_report() {
+    int i;
     printf(ANSI_COLOR_CYAN "\n\n==================SIMULATION REPORT==================\n" ANSI_COLOR_RESET);
-    printf("%s %s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET, "Reason of ending: ");
+    printf(ANSI_COLOR_CYAN "=====================================================\n" ANSI_COLOR_RESET);
+    printf("Reason of ending: ");
     if (executing == 0) {
         printf("%s", "time expired");
     }
@@ -652,12 +655,13 @@ void print_final_report() {
     if (active_users == 0) {
         printf("%s", ", all users are dead");
     }
-    printf(ANSI_COLOR_CYAN "%s\n", "                    |" ANSI_COLOR_RESET);
-    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
-    printf(" User processes dead = %d %s\n", config.SO_USERS_NUM - final_alive_users,
-           ANSI_COLOR_CYAN "                          |" ANSI_COLOR_RESET);
-    printf("%s", ANSI_COLOR_CYAN "|" ANSI_COLOR_RESET);
-    printf(" Number of blocks in the ledger = %d %s\n", *block_id, ANSI_COLOR_CYAN "             |" ANSI_COLOR_RESET);
+    printf("\nUser processes dead = %d\n", config.SO_USERS_NUM - final_alive_users);
+    printf("Number of blocks in the ledger = %d\n", *block_id);
+    for (i = 0; i < config.SO_NODES_NUM + new_nodes; i++) {
+        msgrcv(id_msg_tx_node_master, &txl_node, sizeof(node_txl_message), getpid(), 0);
+        printf("Node %d transaction left: %d\n", txl_node.n.pid, txl_node.n.transactions_left);
+    }
+    printf(ANSI_COLOR_CYAN "=====================================================\n" ANSI_COLOR_RESET);
     printf(ANSI_COLOR_CYAN "================SIMULATION TERMINATED================\n" ANSI_COLOR_RESET);
 }
 

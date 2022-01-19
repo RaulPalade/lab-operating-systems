@@ -1,2 +1,1 @@
-1) Aggiungere arrotondamento su reward
-2) Iniviare transazioni rimaste nella tp al master alla fine della simulazione
+1) Iniviare transazioni rimaste nella tp al master alla fine della simulazione
