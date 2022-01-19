@@ -31,7 +31,9 @@ void check_deadlock();
 
 void read_configuration(configuration *);
 
-void cleanIPC();
+void delete_shm_segments();
+
+void clean_IPCS();
 
 void print_live_info(child_data *, child_data *, child_data *);
 

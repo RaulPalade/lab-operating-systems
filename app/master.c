@@ -305,6 +305,9 @@ int main() {
     init_array(top_nodes, INT_MIN);
     alarm(config.SO_SIM_SEC);
     unlock_init_semaphore(id_sem_init);
+
+    delete_shm_segments();
+
     while (executing && !ledger_full && active_users > 0) {
         if (msgrcv(id_msg_tx_node_master, &tx_node_master, sizeof(tx_message), getpid(), IPC_NOWAIT) != -1) {
             switch (node_pid = fork()) {
@@ -397,9 +400,12 @@ int main() {
 
     print_final_report();
 
-    cleanIPC();
+    free(node_list);
+    free(tmp_node_list);
     free(balance_nodes);
     free(balance_users);
+
+    clean_IPCS();
 
     return 0;
 }
@@ -568,17 +574,16 @@ void read_configuration(configuration *config) {
     fclose(file);
 }
 
-void cleanIPC() {
-    free(node_list);
-    free(tmp_node_list);
-
-    shmdt(master_ledger);
-    shmdt(user_list);
-    shmdt(block_id);
-
+void delete_shm_segments() {
     shmctl(id_shm_ledger, IPC_RMID, NULL);
     shmctl(id_shm_user_list, IPC_RMID, NULL);
     shmctl(id_shm_block_id, IPC_RMID, NULL);
+}
+
+void clean_IPCS() {
+    shmdt(master_ledger);
+    shmdt(user_list);
+    shmdt(block_id);
 
     msgctl(id_msg_tx_node_master, IPC_RMID, NULL);
     msgctl(id_msg_tx_node_user, IPC_RMID, NULL);
@@ -661,7 +666,6 @@ void print_final_report() {
         msgrcv(id_msg_tx_node_master, &txl_node, sizeof(txl_node), getpid(), 0);
         printf("Node %d transaction left: %d\n", txl_node.n.pid, txl_node.n.transactions_left);
     }
-    printf("id_shm_ledger = %d\n", id_shm_ledger);
     printf(ANSI_COLOR_CYAN "=====================================================\n" ANSI_COLOR_RESET);
     printf(ANSI_COLOR_CYAN "================SIMULATION TERMINATED================\n" ANSI_COLOR_RESET);
 }
