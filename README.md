@@ -101,8 +101,8 @@ The following parameters are read at runtime, from a file, from environment vari
 
 A change in the previous parameters should not result in a new compilation of the sources.
 Instead, the following parameters are read at compile time:
-- SO_REGISTRY_SIZE: maximum number of blocks in the ledger
-- SO_BLOCK_SIZE: number of transactions contained in a block
+- `SO_REGISTRY_SIZE`: maximum number of blocks in the ledger
+- `SO_BLOCK_SIZE`: number of transactions contained in a block
 The following table lists values for some sample configurations to test. Keep in mind that the project must also be able to work with other parameters.
 
 | Parameter | Read at | Conf 1 | Conf 2 | Conf 3 |
